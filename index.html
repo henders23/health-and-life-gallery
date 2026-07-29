@@ -61,6 +61,11 @@
   .body{font-size:15.5px;line-height:1.7;color:rgba(232,221,201,.85)}
   .media{width:100%;margin:8px 0 26px;border:1px solid var(--hair);background:#0d0906}
   .media img,.media video{display:block;width:100%;height:auto;max-height:56vh;object-fit:contain}
+  .media img{cursor:zoom-in}
+  #fullView{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;
+    background:rgba(8,5,3,.97);cursor:zoom-out}
+  #fullView.open{display:flex}
+  #fullView img{max-width:97vw;max-height:97vh;object-fit:contain}
 
   .field{margin-bottom:18px}
   .field label{display:block;font-size:11px;letter-spacing:.2em;text-transform:uppercase;
@@ -145,7 +150,9 @@
     <div class="sub">Now showing: Effective Consulting — seventeen prize-nominated creative pieces<br>by first year medical students, hung in a walkable gallery. Press E at any work to read its story.</div>
     <div class="sub" style="font-size:12.5px;color:rgba(232,221,201,.45);margin-top:-14px">Some pieces reflect on bereavement, trauma, eating disorders and death.<br>Take the rooms at your own pace — there are benches when you need one.</div>
     <button id="enterBtn">Enter the gallery</button>
-    <div id="calmRow"><input type="checkbox" id="calmMove"><label for="calmMove">Steady camera (reduce motion)</label></div>
+    <div id="calmRow"><input type="checkbox" id="calmMove"><label for="calmMove">Steady camera (reduce motion)</label>
+      <span style="opacity:.35">·</span>
+      <input type="checkbox" id="demoToggle"><label for="demoToggle">Test layout: 200 exhibits</label></div>
     <div id="keys">
       <div><b>Mouse</b>Look</div><div><b>W A S D</b>Walk</div><div><b>Shift</b>Stride</div>
       <div><b>E</b>View exhibit</div><div><b>M</b>Gallery map</div><div><b>Esc</b>Release cursor</div>
@@ -154,6 +161,7 @@
 </div>
 
 <div id="joyBase"><div id="joyKnob"></div></div>
+<div id="fullView"></div>
 <div id="hud">
   <div id="reticle"></div>
   <div id="roomTag">Now entering<span id="roomName">Entrance Hall</span></div>
@@ -289,6 +297,46 @@ const ROOM_NOTES={
  rq:'Fear changes what patients can hear and what students can do. Recall a moment you were afraid in a clinical space \u2014 what did it teach you about what your patients feel?'}
 };
 
+/* ---- optional test collection: the switch on the entrance plaque (or
+   ?demo in the URL) fills the gallery to 200 exhibits with placeholder
+   work from across the health & life sciences, to exercise the layout ---- */
+const DEMO_WINGS=[
+ {w:'Anatomy & Structure',   accent:'#7a3b2e',tint:0xe4cec2},
+ {w:'Cells & Microscopy',    accent:'#3f6b5a',tint:0xc9dcd2},
+ {w:'Mind & Brain',          accent:'#5b4a78',tint:0xd6cfe0},
+ {w:'Public Health',         accent:'#356577',tint:0xc7d9df},
+ {w:'Ethics & Care',         accent:'#8a6a2f',tint:0xe4d9bd},
+ {w:'The Living World',      accent:'#4a6b35',tint:0xd2ddc4},
+ {w:'Movement & Repair',     accent:'#845277',tint:0xdfcede},
+ {w:'Data & Diagnosis',      accent:'#3d5163',tint:0xc9d4dc}
+];
+let demoLoaded=false;
+function loadDemo(){
+  if(demoLoaded)return;demoLoaded=true;
+  TEX_F=.5;
+  const MEDIA=['Watercolour','Pen art','Collage','Embroidery','Ceramics','Photography','Mixed media','Linocut','Charcoal','Poem'];
+  for(const dw of DEMO_WINGS){
+    WING_STYLE[dw.w]={accent:dw.accent,tint:dw.tint};
+    ROOM_NOTES[dw.w]={
+      st:`Placeholder rooms for a future ${dw.w} wing — in the full gallery, creative work from across ${dw.w.toLowerCase()} would gather here.`,
+      rq:'This is the 200-exhibit test collection: do the rooms, doorways and sight lines still work at this scale?'};
+  }
+  const need=200-EXHIBITS.length;
+  for(let i=0;i<need;i++){
+    const dw=DEMO_WINGS[i%DEMO_WINGS.length];
+    const isText=i%9===4;
+    EXHIBITS.push({
+      id:++_id,wing:dw.w,
+      title:`${dw.w} — Study No. ${Math.floor(i/DEMO_WINGS.length)+1}`,
+      author:MEDIA[i%MEDIA.length],
+      type:isText?'text':'image',
+      aspect:isText?undefined:.62+((i*37)%17)/100,
+      blurb:'A placeholder piece from the test collection, standing in for a real student work.',
+      text:isText?'A placeholder poem\nfor the test collection —\nspace held on this wall\nfor a real student’s words.':undefined
+    });
+  }
+}
+
 const INTRO={
  title:'Year 1 Effective Consulting Creative Work',
  sub:'Prize Nominations 2025\u201326 \u2014 Bristol Medical School',
@@ -307,28 +355,34 @@ A note before you begin: some pieces reflect on bereavement, trauma, eating diso
 /* =====================================================================
    2. TEXTURE FOUNDRY — everything drawn in code, incl. normal maps
    ===================================================================== */
-const cvs=(w,h,draw)=>{const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);return c;};
+let TEX_F=1;   // the 200-exhibit test halves generated-texture resolution to fit in memory
+const cvs=(w,h,draw)=>{const c=document.createElement('canvas');
+  c.width=Math.round(w*TEX_F);c.height=Math.round(h*TEX_F);
+  const x=c.getContext('2d');x.scale(TEX_F,TEX_F);draw(x,w,h);return c;};
 const tex=(c,srgb=true)=>{const t=new THREE.CanvasTexture(c);if(srgb)t.colorSpace=THREE.SRGBColorSpace;
   t.anisotropy=8;t.wrapS=t.wrapT=THREE.RepeatWrapping;return t;};
 
 // derive a normal map from a canvas's luminance (Sobel)
 function normalMap(src,strength=2.2){
+  // works in the source's real pixel space, so it must not go through cvs()
+  // (which would apply the TEX_F scale a second time)
   const w=src.width,h=src.height,s=src.getContext('2d').getImageData(0,0,w,h).data;
   const lum=new Float32Array(w*h);
   for(let i=0;i<w*h;i++) lum[i]=(s[i*4]*.299+s[i*4+1]*.587+s[i*4+2]*.114)/255;
-  const out=cvs(w,h,(x)=>{
-    const img=x.createImageData(w,h),d=img.data;
-    const at=(X,Y)=>lum[((Y+h)%h)*w+((X+w)%w)];
-    for(let y=0;y<h;y++)for(let x2=0;x2<w;x2++){
-      const dx=(at(x2-1,y)-at(x2+1,y))*strength, dy=(at(x2,y-1)-at(x2,y+1))*strength;
-      const l=Math.hypot(dx,dy,1), i=(y*w+x2)*4;
-      d[i]=(dx/l*.5+.5)*255; d[i+1]=(dy/l*.5+.5)*255; d[i+2]=(1/l*.5+.5)*255; d[i+3]=255;
-    }
-    x.putImageData(img,0,0);
-  });
+  const out=document.createElement('canvas');out.width=w;out.height=h;
+  const x=out.getContext('2d');
+  const img=x.createImageData(w,h),d=img.data;
+  const at=(X,Y)=>lum[((Y+h)%h)*w+((X+w)%w)];
+  for(let y=0;y<h;y++)for(let x2=0;x2<w;x2++){
+    const dx=(at(x2-1,y)-at(x2+1,y))*strength, dy=(at(x2,y-1)-at(x2,y+1))*strength;
+    const l=Math.hypot(dx,dy,1), i=(y*w+x2)*4;
+    d[i]=(dx/l*.5+.5)*255; d[i+1]=(dy/l*.5+.5)*255; d[i+2]=(1/l*.5+.5)*255; d[i+3]=255;
+  }
+  x.putImageData(img,0,0);
   const t=tex(out,false); t.colorSpace=THREE.NoColorSpace; return t;
 }
-const grain=(x,w,h,amt)=>{const im=x.getImageData(0,0,w,h),d=im.data;
+const grain=(x,w,h,amt)=>{const W2=x.canvas.width,H2=x.canvas.height;
+  const im=x.getImageData(0,0,W2,H2),d=im.data;
   for(let i=0;i<d.length;i+=4){const n=(Math.random()-.5)*amt;d[i]+=n;d[i+1]+=n;d[i+2]+=n;}
   x.putImageData(im,0,0);};
 
@@ -1144,9 +1198,12 @@ function buildRoom(room){
     const dest=s<0?room.doors.S:room.doors.N;
     const zw=B+s*T/4, F=B+s*T/2;
     const finish=(xa,xb)=>{const w=xb-xa,mx=(xa+xb)/2;
+      box(w,.30,.11,mx,.15,F+s*.055,M.trim);                    // skirting
+      if(room.lobby||room.coda)return;   // feature walls stay plain, so the
+                                         // title, plan and closing text are
+                                         // never crossed by rails
       box(w,.95,.06,mx,.55,F+s*.03,M.wood);                     // wainscot panel
       box(w,.16,.14,mx,1.06,F+s*.07,M.trim);                    // dado rail
-      box(w,.30,.11,mx,.15,F+s*.055,M.trim);                    // skirting
       box(w,.13,.15,mx,3.62,F+s*.075,M.trim);};                 // picture rail
     if(!dest){box(ROOM_W,ROOM_H,T/2,cx,ROOM_H/2,zw,wallMat,false);finish(x0,x1);return;}
     const side=(ROOM_W-DOOR_W)/2;
@@ -1168,19 +1225,24 @@ function buildRoom(room){
   const hero=items.find(i=>i.title===HEROES[room.wing]&&!DISPLAY[i.title]);
   if(hero){items=items.filter(i=>i!==hero);
     hang(hero,x1-T/2-.17,room.doors.E?zc+3.95:zc,-Math.PI/2,room);}
-  const n=[],s2=[];
-  items.forEach((it,i)=>(i%2?s2:n).push(it));
-  const slots=(k,hasDoor)=>{
-    if(!k)return[];
-    if(!hasDoor){const step=ROOM_W/(k+1);return Array.from({length:k},(_,i)=>x0+step*(i+1));}
-    const seg=[[x0+1.2,cx-DOOR_W/2-1.0],[cx+DOOR_W/2+1.0,x1-1.2]],out=[];
-    [[seg[0],Math.ceil(k/2)],[seg[1],Math.floor(k/2)]].forEach(([sg,kk])=>{
-      const step=(sg[1]-sg[0])/(kk+1);
-      for(let i=0;i<kk;i++)out.push(sg[0]+step*(i+1));});
-    return out;
+  // wall space is divided into runs either side of any doorway, and each
+  // work goes to whichever run currently offers it the most room
+  const segs=[];
+  const addSegs=(z,rot,hasDoor)=>{
+    if(!hasDoor)segs.push({z,rot,xa:x0+1.2,xb:x1-1.2,items:[]});
+    else{segs.push({z,rot,xa:x0+1.2,xb:cx-DOOR_W/2-1.0,items:[]});
+         segs.push({z,rot,xa:cx+DOOR_W/2+1.0,xb:x1-1.2,items:[]});}
   };
-  slots(n.length,!!room.doors.N).forEach((px,i)=>hang(n[i],px,z0+T/2+.14,0,room));
-  slots(s2.length,!!room.doors.S).forEach((px,i)=>hang(s2[i],px,z1-T/2-.14,Math.PI,room));
+  addSegs(z0+T/2+.14,0,!!room.doors.N);
+  addSegs(z1-T/2-.14,Math.PI,!!room.doors.S);
+  for(const it of items){
+    segs.sort((a,b)=>(b.xb-b.xa)/(b.items.length+1)-(a.xb-a.xa)/(a.items.length+1));
+    segs[0].items.push(it);
+  }
+  for(const sg of segs){
+    const step=(sg.xb-sg.xa)/(sg.items.length+1);
+    sg.items.forEach((d,i)=>hang(d,sg.xa+step*(i+1),sg.z,sg.rot,room,step-.7));
+  }
 
   // viewing benches, kept off the door-to-door walking lines —
   // the heaviest room gets two, and space to sit with it
@@ -1202,7 +1264,7 @@ function buildRoom(room){
   room.lanternPos=new THREE.Vector3(cx,ROOM_H-.5,zc);
 }
 
-function hang(d,x,z,rotY,room){
+function hang(d,x,z,rotY,room,maxW){
   const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=rotY;root.add(g);
   let map;
   const src=d.img||(d.type==='image'?d.url:null);
@@ -1253,6 +1315,7 @@ function hang(d,x,z,rotY,room){
       else { h=2.35; w=h*d.aspect;
              if(w<1.1){ w=1.1; h=Math.min(2.45,w/d.aspect); w=h*d.aspect; } }
     } else { w=wide?3.1:(tall?1.85:2.5); h=wide?3.1*9/16:(tall?2.55:1.9); }
+    if(maxW&&w>maxW){const k=maxW/w;w*=k;h*=k;}   // crowded walls get smaller frames, not overlaps
 
     const fr=new THREE.Mesh(frameGeo(w,h,.11),M.gilt);
     fr.position.set(0,PIC_Y,.02);fr.castShadow=true;fr.receiveShadow=true;g.add(fr);
@@ -1296,6 +1359,10 @@ function hang(d,x,z,rotY,room){
   exhibitObjs.push({mesh:art,group:g,data:d,pos:world,facing:rotY,lampPos,aimPos,labelPos,cardMesh});
 }
 
+if(new URLSearchParams(location.search).has('demo')){
+  loadDemo();
+  document.getElementById('demoToggle').checked=true;
+}
 buildGallery();
 if(pendingMap){pendingMap.material.map=mapTex(rooms);pendingMap.material.needsUpdate=true;}
 
@@ -1361,6 +1428,10 @@ scene.add(dust);
    ===================================================================== */
 let REDUCE=false;
 document.getElementById('calmMove').onchange=e=>REDUCE=e.target.checked;
+document.getElementById('demoToggle').onchange=e=>{
+  if(e.target.checked){loadDemo();rebuild();}
+  else location.reload();   // the test collection can only be cleared by starting over
+};
 const controls=new PointerLockControls(camera,renderer.domElement);
 camera.position.set(-4.0,1.66,0);
 camera.rotation.y=-Math.PI/2; // in the vestibule, facing the arch into the hall
@@ -1447,7 +1518,21 @@ function closeSheets(){[detail,dirSheet,upSheet,mapSheet].forEach(s=>s.classList
 document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>{closeSheets();resume();});
 [detail,dirSheet,upSheet,mapSheet].forEach(s=>s.addEventListener('click',e=>{
   if(e.target===s){closeSheets();resume();}}));
-addEventListener('keydown',e=>{if(e.code==='Escape'&&sheetOpen)closeSheets();});
+addEventListener('keydown',e=>{
+  if(e.code!=='Escape')return;
+  if(fullView.classList.contains('open')){fullView.classList.remove('open');return;}
+  if(sheetOpen)closeSheets();
+});
+
+/* ---- click a picture in the detail sheet for a full-screen view;
+   click (or Esc) again to come back ---- */
+const fullView=$('fullView');
+function openFull(src){
+  fullView.innerHTML='';
+  const i=document.createElement('img');i.src=src;fullView.appendChild(i);
+  fullView.classList.add('open');
+}
+fullView.onclick=()=>fullView.classList.remove('open');
 
 /* ---- the M map: statements and reflection questions per room ---- */
 function buildMapSheet(){
@@ -1525,11 +1610,11 @@ function showExhibit(d){
   currentDetail=d;renderResponses(d);
   const m=$('dMedia');m.innerHTML='';m.style.border='';
   if(d.img){
-    const i=document.createElement('img');i.src=d.img;m.appendChild(i);
-    (d.extra||[]).forEach(u=>{const e2=document.createElement('img');e2.src=u;
+    const i=document.createElement('img');i.src=d.img;i.onclick=()=>openFull(d.img);m.appendChild(i);
+    (d.extra||[]).forEach(u=>{const e2=document.createElement('img');e2.src=u;e2.onclick=()=>openFull(u);
       e2.style.borderTop='1px solid rgba(232,221,201,.2)';m.appendChild(e2);});
   }
-  else if(d.url&&d.type==='image'){const i=document.createElement('img');i.src=d.url;m.appendChild(i);}
+  else if(d.url&&d.type==='image'){const i=document.createElement('img');i.src=d.url;i.onclick=()=>openFull(d.url);m.appendChild(i);}
   else if(d.url&&d.type==='video'){const v=document.createElement('video');v.src=d.url;v.controls=true;m.appendChild(v);}
   else if(d.url&&d.type==='pdf'){const a=document.createElement('a');a.href=d.url;a.target='_blank';
     a.style.cssText='display:block;padding:26px;color:#e0ab5c;text-align:center';a.textContent='Open the document ↗';m.appendChild(a);}
@@ -1638,6 +1723,7 @@ function rebuild(){
   buildGallery();
   if(pendingMap){pendingMap.material.map=mapTex(rooms);pendingMap.material.needsUpdate=true;}
   currentRoom=-1;
+  fillWings();
 }
 
 const IS_TOUCH=matchMedia('(pointer:coarse)').matches;
