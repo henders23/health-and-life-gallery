@@ -1089,9 +1089,19 @@ function buildGallery(){
   const byCell={};
   plan.forEach((r,idx)=>{
     const row=Math.floor(idx/COLS), col=row%2===0?idx%COLS:COLS-1-idx%COLS;
-    const x0=col*ROOM_W,x1=x0+ROOM_W;
-    const z0=row*ROOM_D-ROOM_D/2,z1=row*ROOM_D+ROOM_D/2;
-    const room={x0,x1,z0,z1,cx:(x0+x1)/2,zc:row*ROOM_D,col,row,index:idx,
+    const bx0=col*ROOM_W,bx1=bx0+ROOM_W;
+    const bz0=row*ROOM_D-ROOM_D/2,bz1=row*ROOM_D+ROOM_D/2;
+    /* rooms vary within their cell: narrower, shallower or taller than the
+       standard hall, deterministically per room — doorways stay aligned on
+       the cell centre lines, reached through passages in the thicker walls */
+    const plain=r.lobby||r.coda;
+    const hsh=(idx*73+29)%97;
+    let ix=plain?0:[0,1.2,2.4][hsh%3];
+    if(r.items.length>4)ix=Math.min(ix,1.2);     // full rooms keep their wall run
+    const iz=plain?0:[0,.9][Math.floor(hsh/3)%2];
+    const h=plain?ROOM_H:[ROOM_H,4.8,6.4][Math.floor(hsh/7)%3];
+    const room={x0:bx0+ix,x1:bx1-ix,z0:bz0+iz,z1:bz1-iz,bx0,bx1,bz0,bz1,h,
+      cx:(bx0+bx1)/2,zc:row*ROOM_D,col,row,index:idx,
       wing:r.wing,items:r.items,lanternPos:null,lobby:!!r.lobby,coda:!!r.coda,
       doors:{E:null,W:null,N:null,S:null}};        // holds the wing beyond, or null
     rooms.push(room);byCell[col+','+row]=room;
@@ -1109,8 +1119,12 @@ function buildGallery(){
   rooms[0].doors.W='vestibule';
   rooms.forEach(room=>{
     walkable.push({x0:room.x0+.62,x1:room.x1-.62,z0:room.z0+.62,z1:room.z1-.62});
-    if(room.doors.E) walkable.push({x0:room.x1-1.6,x1:room.x1+1.6,z0:room.zc-DOOR_W/2+.5,z1:room.zc+DOOR_W/2-.5});
-    if(room.doors.S) walkable.push({x0:room.cx-DOOR_W/2+.5,x1:room.cx+DOOR_W/2-.5,z0:room.z1-1.6,z1:room.z1+1.6});
+    if(room.doors.E){const nb=byCell[(room.col+1)+','+room.row];
+      walkable.push({x0:room.x1-1.2,x1:(nb?nb.x0:room.bx1)+1.2,
+        z0:room.zc-DOOR_W/2+.5,z1:room.zc+DOOR_W/2-.5});}
+    if(room.doors.S){const nb=byCell[room.col+','+(room.row+1)];
+      walkable.push({x0:room.cx-DOOR_W/2+.5,x1:room.cx+DOOR_W/2-.5,
+        z0:room.z1-1.2,z1:(nb?nb.z0:room.bz1)+1.2});}
     buildRoom(room);
     if(room.lobby) buildLobby(room);
     if(room.coda) buildCoda(room);
@@ -1119,6 +1133,7 @@ function buildGallery(){
 
 function buildRoom(room){
   const {x0,x1,z0,z1,cx,zc}=room;
+  const H=room.h||ROOM_H, W2=x1-x0, D2=z1-z0;
   const wallMat=wingWallMat(room.wing);
 
   // floor — the parquet is laid across the grain in alternate rooms
@@ -1129,30 +1144,33 @@ function buildRoom(room){
   const f=new THREE.Mesh(new THREE.PlaneGeometry(ROOM_W,ROOM_D),fm);
   f.rotation.x=-Math.PI/2;f.position.set(cx,0,zc);f.receiveShadow=true;root.add(f);
 
-  // ceiling — the lantern treatment varies from room to room
+  // ceiling — height and lantern treatment vary from room to room
   const c=new THREE.Mesh(new THREE.PlaneGeometry(ROOM_W,ROOM_D),M.ceil);
-  c.rotation.x=Math.PI/2;c.position.set(cx,ROOM_H,zc);c.receiveShadow=true;root.add(c);
-  box(ROOM_W,.36,.36,cx,ROOM_H-.18,z0+.18,M.trim);          // cornice
-  box(ROOM_W,.36,.36,cx,ROOM_H-.18,z1-.18,M.trim);
-  box(.36,.36,ROOM_D-.72,x0+.18,ROOM_H-.18,zc,M.trim);
-  box(.36,.36,ROOM_D-.72,x1-.18,ROOM_H-.18,zc,M.trim);
+  c.rotation.x=Math.PI/2;c.position.set(cx,H,zc);c.receiveShadow=true;root.add(c);
+  box(W2,.36,.36,cx,H-.18,z0+.18,M.trim);                   // cornice
+  box(W2,.36,.36,cx,H-.18,z1-.18,M.trim);
+  box(.36,.36,D2-.72,x0+.18,H-.18,zc,M.trim);
+  box(.36,.36,D2-.72,x1-.18,H-.18,zc,M.trim);
   const variant=(room.lobby||room.coda)?0:1+(room.index%2);
   if(variant===2){                          // paired lanterns with a spine beam
     for(const off of [-3.6,3.6]){
       const ln=new THREE.Mesh(new THREE.BoxGeometry(3.4,.12,2.8),M.lantern);
-      ln.position.set(cx+off,ROOM_H-.05,zc);root.add(ln);
-      box(3.9,.3,.28,cx+off,ROOM_H-.2,zc-1.55,M.trim);box(3.9,.3,.28,cx+off,ROOM_H-.2,zc+1.55,M.trim);
+      ln.position.set(cx+off,H-.05,zc);root.add(ln);
+      box(3.9,.3,.28,cx+off,H-.2,zc-1.55,M.trim);box(3.9,.3,.28,cx+off,H-.2,zc+1.55,M.trim);
     }
-    box(.5,.36,ROOM_D-.8,cx,ROOM_H-.18,zc,M.trim);
+    box(.5,.36,D2-.8,cx,H-.18,zc,M.trim);
   }else if(variant===1){                    // long lantern between exposed beams
-    const ln=new THREE.Mesh(new THREE.BoxGeometry(9.6,.12,2.2),M.lantern);
-    ln.position.set(cx,ROOM_H-.05,zc);root.add(ln);
-    for(const b of [-6.4,-3.2,3.2,6.4]) box(.3,.42,ROOM_D-.8,cx+b,ROOM_H-.21,zc,M.trim);
+    const ln=new THREE.Mesh(new THREE.BoxGeometry(Math.min(9.6,W2-2.4),.12,2.2),M.lantern);
+    ln.position.set(cx,H-.05,zc);root.add(ln);
+    for(const b of [-6.4,-3.2,3.2,6.4]){
+      if(Math.abs(b)>W2/2-.6)continue;      // narrow rooms drop the outermost beams
+      box(.3,.42,D2-.8,cx+b,H-.21,zc,M.trim);
+    }
   }else{                                    // the classic coffered lantern
     const ln=new THREE.Mesh(new THREE.BoxGeometry(6.4,.12,3.4),M.lantern);
-    ln.position.set(cx,ROOM_H-.05,zc);root.add(ln);
-    box(6.9,.3,.28,cx,ROOM_H-.2,zc-1.85,M.trim);box(6.9,.3,.28,cx,ROOM_H-.2,zc+1.85,M.trim);
-    box(.28,.3,3.7,cx-3.35,ROOM_H-.2,zc,M.trim);box(.28,.3,3.7,cx+3.35,ROOM_H-.2,zc,M.trim);
+    ln.position.set(cx,H-.05,zc);root.add(ln);
+    box(6.9,.3,.28,cx,H-.2,zc-1.85,M.trim);box(6.9,.3,.28,cx,H-.2,zc+1.85,M.trim);
+    box(.28,.3,3.7,cx-3.35,H-.2,zc,M.trim);box(.28,.3,3.7,cx+3.35,H-.2,zc,M.trim);
   }
 
   /* the theme beyond a doorway is announced by a painted pediment above
@@ -1184,11 +1202,11 @@ function buildRoom(room){
   const ewWall=(B,s)=>{
     const dest=s<0?room.doors.E:room.doors.W;
     const xw=B+s*T/4, F=B+s*T/2;
-    if(!dest){box(T/2,ROOM_H,ROOM_D,xw,ROOM_H/2,zc,wallMat,false);return;}
-    const side=(ROOM_D-DOOR_W)/2;
-    box(T/2,ROOM_H,side,xw,ROOM_H/2,z0+side/2,wallMat,false);
-    box(T/2,ROOM_H,side,xw,ROOM_H/2,z1-side/2,wallMat,false);
-    box(T/2,ROOM_H-DOOR_H,DOOR_W,xw,DOOR_H+(ROOM_H-DOOR_H)/2,zc,wallMat,false);
+    if(!dest){box(T/2,H,D2,xw,H/2,zc,wallMat,false);return;}
+    const side=(D2-DOOR_W)/2;
+    box(T/2,H,side,xw,H/2,z0+side/2,wallMat,false);
+    box(T/2,H,side,xw,H/2,z1-side/2,wallMat,false);
+    box(T/2,H-DOOR_H,DOOR_W,xw,DOOR_H+(H-DOOR_H)/2,zc,wallMat,false);
     box(.12,.20,DOOR_W+.44,F+s*.06,DOOR_H+.10,zc,M.trim);       // casing head
     box(.09,DOOR_H,.22,F+s*.045,DOOR_H/2,zc-DOOR_W/2-.11,M.trim);
     box(.09,DOOR_H,.22,F+s*.045,DOOR_H/2,zc+DOOR_W/2+.11,M.trim);
@@ -1205,11 +1223,11 @@ function buildRoom(room){
       box(w,.95,.06,mx,.55,F+s*.03,M.wood);                     // wainscot panel
       box(w,.16,.14,mx,1.06,F+s*.07,M.trim);                    // dado rail
       box(w,.13,.15,mx,3.62,F+s*.075,M.trim);};                 // picture rail
-    if(!dest){box(ROOM_W,ROOM_H,T/2,cx,ROOM_H/2,zw,wallMat,false);finish(x0,x1);return;}
-    const side=(ROOM_W-DOOR_W)/2;
-    box(side,ROOM_H,T/2,x0+side/2,ROOM_H/2,zw,wallMat,false);
-    box(side,ROOM_H,T/2,x1-side/2,ROOM_H/2,zw,wallMat,false);
-    box(DOOR_W,ROOM_H-DOOR_H,T/2,cx,DOOR_H+(ROOM_H-DOOR_H)/2,zw,wallMat,false);
+    if(!dest){box(W2,H,T/2,cx,H/2,zw,wallMat,false);finish(x0,x1);return;}
+    const side=(W2-DOOR_W)/2;
+    box(side,H,T/2,x0+side/2,H/2,zw,wallMat,false);
+    box(side,H,T/2,x1-side/2,H/2,zw,wallMat,false);
+    box(DOOR_W,H-DOOR_H,T/2,cx,DOOR_H+(H-DOOR_H)/2,zw,wallMat,false);
     finish(x0,cx-DOOR_W/2);finish(cx+DOOR_W/2,x1);
     box(DOOR_W+.44,.20,.12,cx,DOOR_H+.10,F+s*.06,M.trim);       // casing head
     box(.22,DOOR_H,.09,cx-DOOR_W/2-.11,DOOR_H/2,F+s*.045,M.trim);
@@ -1218,6 +1236,24 @@ function buildRoom(room){
   };
   ewWall(x1,-1);ewWall(x0,1);
   nsWall(z1,-1);nsWall(z0,1);
+
+  /* inset rooms reach their doorways through short panelled passages that
+     run out to the cell boundary, where they meet the neighbour's half */
+  const passage=(axis,B,wall)=>{
+    const L=Math.abs(B-wall),m=(B+wall)/2;
+    if(L<.01)return;
+    if(axis==='x'){
+      for(const sz of [-1,1]) box(L,DOOR_H,.16,m,DOOR_H/2,zc+sz*(DOOR_W/2+.08),M.trim,false);
+      box(L,.3,DOOR_W+.32,m,DOOR_H+.15,zc,M.trim,false);
+    }else{
+      for(const sx of [-1,1]) box(.16,DOOR_H,L,cx+sx*(DOOR_W/2+.08),DOOR_H/2,m,M.trim,false);
+      box(DOOR_W+.32,.3,L,cx,DOOR_H+.15,m,M.trim,false);
+    }
+  };
+  if(room.doors.E)passage('x',room.bx1,x1);
+  if(room.doors.W)passage('x',room.bx0,x0);
+  if(room.doors.S)passage('z',room.bz1,z1);
+  if(room.doors.N)passage('z',room.bz0,z0);
 
   // hang the work: the wing's hero piece takes the east wall (beside the
   // doorway if there is one), the rest alternate along the two long walls
@@ -1241,7 +1277,9 @@ function buildRoom(room){
   }
   for(const sg of segs){
     const step=(sg.xb-sg.xa)/(sg.items.length+1);
-    sg.items.forEach((d,i)=>hang(d,sg.xa+step*(i+1),sg.z,sg.rot,room,step-.7));
+    // a lone work may spread beyond its notional step; neighbours may not
+    const run=sg.items.length>1?step:step*1.8;
+    sg.items.forEach((d,i)=>hang(d,sg.xa+step*(i+1),sg.z,sg.rot,room,run));
   }
 
   // viewing benches, kept off the door-to-door walking lines —
@@ -1261,7 +1299,7 @@ function buildRoom(room){
   else if(room.items.length>2) addBench(-2.8,zc+2.4);
 
   // where this room's lantern should throw its fill light
-  room.lanternPos=new THREE.Vector3(cx,ROOM_H-.5,zc);
+  room.lanternPos=new THREE.Vector3(cx,H-.5,zc);
 }
 
 function hang(d,x,z,rotY,room,maxW){
@@ -1315,7 +1353,13 @@ function hang(d,x,z,rotY,room,maxW){
       else { h=2.35; w=h*d.aspect;
              if(w<1.1){ w=1.1; h=Math.min(2.45,w/d.aspect); w=h*d.aspect; } }
     } else { w=wide?3.1:(tall?1.85:2.5); h=wide?3.1*9/16:(tall?2.55:1.9); }
-    if(maxW&&w>maxW){const k=maxW/w;w*=k;h*=k;}   // crowded walls get smaller frames, not overlaps
+    if(maxW){
+      // the label and response card hang beside the work, so a labelled
+      // piece must leave room for them within its run — this is what keeps
+      // descriptions clear of the next frame
+      const lim=Math.max(.9,maxW-(d.excerpt?1.75:.4));
+      if(w>lim){const k=lim/w;w*=k;h*=k;}
+    }
 
     const fr=new THREE.Mesh(frameGeo(w,h,.11),M.gilt);
     fr.position.set(0,PIC_Y,.02);fr.castShadow=true;fr.receiveShadow=true;g.add(fr);
@@ -1449,7 +1493,7 @@ const clock=new THREE.Clock();
 let bob=0,sway=0;
 function move(dt){
   const run=keys['ShiftLeft']||keys['ShiftRight'];
-  const spd=run?4.2:2.0;
+  const spd=run?5.2:2.6;
   camera.getWorldDirection(fwd);fwd.y=0;fwd.normalize();
   rgt.crossVectors(fwd,camera.up).normalize();
   wish.set(0,0,0);
