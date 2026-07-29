@@ -982,6 +982,9 @@ renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
 renderer.setSize(innerWidth,innerHeight);
 renderer.shadowMap.enabled=true;
 renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+// shadow maps re-render only when the picture lights move to new works,
+// not every frame — the single biggest cause of stutter while walking
+renderer.shadowMap.autoUpdate=false;
 renderer.toneMapping=THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure=1.0;
 renderer.outputColorSpace=THREE.SRGBColorSpace;
@@ -1307,7 +1310,9 @@ function hang(d,x,z,rotY,room,maxW){
   let map;
   const src=d.img||(d.type==='image'?d.url:null);
   if(src){
-    map=new THREE.TextureLoader().load(src);
+    // upload to the GPU as soon as the image decodes, so the first glance
+    // at a work never causes a hitch
+    map=new THREE.TextureLoader().load(src,t=>renderer.initTexture(t));
     map.colorSpace=THREE.SRGBColorSpace; map.anisotropy=8;
   } else map=artTex(d);
 
@@ -1410,6 +1415,16 @@ if(new URLSearchParams(location.search).has('demo')){
 buildGallery();
 if(pendingMap){pendingMap.material.map=mapTex(rooms);pendingMap.material.needsUpdate=true;}
 
+// push every generated texture to the GPU up front — a slightly longer
+// load instead of hitches the first time each room comes into view
+function warmTextures(){
+  root.traverse(o=>{
+    const m=o.material;
+    if(m&&m.map&&m.map.image)renderer.initTexture(m.map);
+  });
+}
+warmTextures();
+
 /* ---------------------------------------------------------------
    A FIXED POOL OF LIGHTS.
    The count never changes, so three.js never has to recompile the
@@ -1430,12 +1445,19 @@ for(let i=0;i<FILL_POOL;i++){
   const f=new THREE.PointLight(0xffd9a6,0,22,2.2);
   scene.add(f);fills.push(f);
 }
+let lightSig='';
 function updateLightPool(){
   const p=camera.position;
-  // nearest pictures get the picture lights
   const near=exhibitObjs
-    .map(e=>({e,d:e.pos.distanceToSquared(p)}))
+    .map((e,i)=>({e,i,d:e.pos.distanceToSquared(p)}))
     .sort((a,b)=>a.d-b.d).slice(0,SPOT_POOL);
+  const nr=rooms.filter(r=>r.lanternPos)
+    .map(r=>({r,d:r.lanternPos.distanceToSquared(p)}))
+    .sort((a,b)=>a.d-b.d).slice(0,FILL_POOL);
+  // reassign (and re-render shadows) only when the nearest set changes
+  const sig=near.map(n=>n.d>420?'':n.i).join()+'|'+nr.map(n=>n.d>900?'':n.r.index).join();
+  if(sig===lightSig)return;
+  lightSig=sig;
   spots.forEach((s,i)=>{
     const n=near[i];
     if(!n||n.d>420){s.intensity=0;return;}
@@ -1444,16 +1466,13 @@ function updateLightPool(){
     s.target.updateMatrixWorld();
     s.intensity=11;
   });
-  // nearest lanterns get the room fill
-  const nr=rooms.filter(r=>r.lanternPos)
-    .map(r=>({r,d:r.lanternPos.distanceToSquared(p)}))
-    .sort((a,b)=>a.d-b.d).slice(0,FILL_POOL);
   fills.forEach((f,i)=>{
     const n=nr[i];
     if(!n||n.d>900){f.intensity=0;return;}
     f.position.copy(n.r.lanternPos);
     f.intensity=i===0?15:9;
   });
+  renderer.shadowMap.needsUpdate=true;
 }
 
 /* ---- dust in the light ---- */
@@ -1507,19 +1526,21 @@ function move(dt){
   if(wish.lengthSq()>0)wish.normalize().multiplyScalar(spd);
   // easing into and out of the stride is what stops the judder
   curVel.lerp(wish,1-Math.exp(-dt*9));
-  const speed=curVel.length();
-  if(speed>.02){
+  let eff=0;   // the speed actually achieved, once walls have had their say
+  if(curVel.lengthSq()>.0004){
     const p=camera.position,mx=curVel.x*dt,mz=curVel.z*dt;
-    if(allowed(p.x+mx,p.z+mz)){p.x+=mx;p.z+=mz;}
-    else if(allowed(p.x+mx,p.z)){p.x+=mx;curVel.z=0;}
-    else if(allowed(p.x,p.z+mz)){p.z+=mz;curVel.x=0;}
-    else curVel.set(0,0,0);
-    bob+=dt*speed*2.7;sway+=dt*speed*1.35;
+    let ax=0,az=0;
+    if(allowed(p.x+mx,p.z+mz)){ax=mx;az=mz;}
+    else if(allowed(p.x+mx,p.z))ax=mx;      // slide along the wall,
+    else if(allowed(p.x,p.z+mz))az=mz;      // keeping the stride's momentum
+    p.x+=ax;p.z+=az;
+    eff=Math.hypot(ax,az)/Math.max(dt,1e-4);
+    bob+=dt*eff*2.7;sway+=dt*eff*1.35;
   }
   // a gentle head bob that fades with speed (off in steady-camera mode)
-  const amp=REDUCE?0:.018*Math.min(1,speed/2);
+  const amp=REDUCE?0:.018*Math.min(1,eff/2);
   camera.position.y=1.66+Math.sin(bob)*amp;
-  const targetRoll=REDUCE?0:Math.sin(sway)*.004*Math.min(1,speed/2);
+  const targetRoll=REDUCE?0:Math.sin(sway)*.004*Math.min(1,eff/2);
   camera.rotation.z+=(targetRoll-camera.rotation.z)*Math.min(1,dt*6);
 }
 
@@ -1532,7 +1553,6 @@ function updateContext(){
   const p=camera.position;
   const ri=rooms.findIndex(r=>p.x>=r.x0-1.7&&p.x<=r.x1+1.7&&p.z>=r.z0-1.7&&p.z<=r.z1+1.7);
   if(ri>=0&&ri!==currentRoom){currentRoom=ri;roomNameEl.textContent=rooms[ri].wing;}
-  updateLightPool();
   focused=null;let best=1e9;
   camera.getWorldDirection(fwd);
   for(const e of exhibitObjs){
@@ -1778,8 +1798,9 @@ function rebuild(){
   rooms.length=0;walkable.length=0;exhibitObjs.length=0;pendingMap=null;codaWallMesh=null;
   buildGallery();
   if(pendingMap){pendingMap.material.map=mapTex(rooms);pendingMap.material.needsUpdate=true;}
-  currentRoom=-1;
+  currentRoom=-1;lightSig='';
   fillWings();
+  warmTextures();
 }
 
 const IS_TOUCH=matchMedia('(pointer:coarse)').matches;
@@ -1848,10 +1869,14 @@ addEventListener('resize',()=>{
    ===================================================================== */
 buildComposer();
 const dpAttr=dgeo.getAttribute('position');
+let lightAcc=1;   // starts high so the lights assign on the first frame
 renderer.setAnimationLoop(()=>{
   const dt=Math.min(clock.getDelta(),.1);
   if(controls.isLocked||touchWalking)move(dt);
   updateContext();
+  // the light pool re-sorts a few times a second, not per frame
+  lightAcc+=dt;
+  if(lightAcc>.12){lightAcc=0;updateLightPool();}
   // drift the dust, keeping it around the visitor
   const p=camera.position;
   for(let i=0;i<DUST;i++){
