@@ -1,0 +1,5 @@
+{
+  "redirects": [
+    { "source": "/ec-gallery_5.html", "destination": "/", "permanent": true }
+  ]
+}
