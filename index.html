@@ -1521,7 +1521,7 @@ document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>{closeSheets(
 addEventListener('keydown',e=>{
   if(e.code!=='Escape')return;
   if(fullView.classList.contains('open')){fullView.classList.remove('open');return;}
-  if(sheetOpen)closeSheets();
+  if(sheetOpen){closeSheets();resume();}
 });
 
 /* ---- click a picture in the detail sheet for a full-screen view;
@@ -1569,7 +1569,19 @@ addEventListener('keydown',e=>{
 });
 
 const tryOpen=()=>{if(focused&&!sheetOpen)showExhibit(focused.data);};
-renderer.domElement.addEventListener('mousedown',()=>{if(controls.isLocked&&focused)showExhibit(focused.data);});
+renderer.domElement.addEventListener('mousedown',()=>{
+  if(controls.isLocked){if(focused)showExhibit(focused.data);return;}
+  // clicking the scene while unlocked (and no sheet is up) always resumes the
+  // walk — the safety net for any path where re-locking the pointer failed
+  if(!sheetOpen&&hud.style.display==='block')resume();
+});
+// the browser refuses to re-lock for ~1.3s after an Escape exit;
+// when that happens, retry once the cooldown has passed
+document.addEventListener('pointerlockerror',()=>{
+  setTimeout(()=>{
+    if(!sheetOpen&&!controls.isLocked&&hud.style.display==='block')controls.lock();
+  },1600);
+});
 
 function showExhibit(d){
   if(d.voteStand){
