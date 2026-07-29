@@ -1434,11 +1434,11 @@ warmTextures();
 const SPOT_POOL=8, FILL_POOL=3;
 const spots=[],fills=[];
 for(let i=0;i<SPOT_POOL;i++){
-  // only the four nearest picture lights cast shadows — the rest just glow,
-  // which halves the shadow-map re-renders that made walking stutter
+  // only the two nearest picture lights cast shadows — the rest just glow,
+  // trimming the shadow-map work to a minimum on each handoff
   const s=new THREE.SpotLight(0xffe0ae,0,8.5,Math.PI/6.5,.62,1.7);
   s.shadow.mapSize.set(512,512);s.shadow.bias=-0.0009;s.shadow.normalBias=.022;
-  s.shadow.camera.near=.25;s.shadow.camera.far=8;s.castShadow=i<4;
+  s.shadow.camera.near=.25;s.shadow.camera.far=8;s.castShadow=i<2;
   scene.add(s);scene.add(s.target);spots.push(s);
 }
 for(let i=0;i<FILL_POOL;i++){
