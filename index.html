@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>The Health &amp; Life Sciences Gallery — The Promenade</title>
+<title>Health and Life — The Promenade</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   :root{
@@ -153,7 +153,7 @@
   <div id="plaque">
     <div class="est">University of Bristol · Health &amp; Life Sciences</div>
     <div class="rule"></div>
-    <h1>The Health &amp; Life<br>Sciences Gallery</h1>
+    <h1>Health and Life</h1>
     <div class="sub">The Promenade — twelve zones in three acts: a rising gallery, a courtyard,
       quiet dark rooms and bright ones, with shortcuts and places to pause.</div>
     <div class="sub" style="font-size:12.5px;color:rgba(232,221,201,.45);margin-top:-14px">
@@ -258,6 +258,7 @@ import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /* =====================================================================
    1. THE PROMENADE — zones from the curators' floor plan.
@@ -370,7 +371,7 @@ const zoneItems=zid=>EXHIBITS.filter(e=>e.zid===zid||e.wing===ZONES[zid].name);
 
 const INTRO={
  title:'The Promenade — a walkable gallery pilot',
- sub:'Health & Life Sciences · layout preview — all exhibits are placeholders',
+ sub:'Health and Life · layout preview — all exhibits are placeholders',
  text:`This build tests the gallery as a place to walk, before any real work is hung. Nothing here is by a student: every frame, page and object is a stand-in, sized and lit as the real thing would be.
 
 The route is a promenade in three acts:
@@ -733,14 +734,12 @@ function bigTitleTex(){
   return tex(cvs(1600,520,(x,W,H)=>{
     x.fillStyle='#ded3bb';x.fillRect(0,0,W,H);
     x.textAlign='center';x.fillStyle='#4f3a1f';
-    x.font='400 64px Georgia, serif';
-    x.fillText('THE HEALTH & LIFE SCIENCES',W/2,150);
-    x.font='400 100px Georgia, serif';
-    x.fillText('GALLERY',W/2,270);
+    x.font='400 128px Georgia, serif';
+    x.fillText('HEALTH AND LIFE',W/2,230);
     x.strokeStyle='#b8873f';x.lineWidth=4;
-    x.beginPath();x.moveTo(W*.3,320);x.lineTo(W*.7,320);x.stroke();
+    x.beginPath();x.moveTo(W*.3,290);x.lineTo(W*.7,290);x.stroke();
     x.font='italic 42px Georgia, serif';x.fillStyle='rgba(79,58,31,.85)';
-    x.fillText('The Promenade — layout preview · all exhibits are placeholders',W/2,400);
+    x.fillText('The Promenade — layout preview · all exhibits are placeholders',W/2,380);
     grain(x,W,H,7);
   }));
 }
@@ -1981,6 +1980,49 @@ function buildGallery(){
      graph update costs nothing */
   root.updateMatrixWorld(true);
   root.traverse(o=>{o.matrixAutoUpdate=false;});
+  mergeStatic();
+}
+
+/* Collapse the hundreds of static meshes that share a material — walls,
+   trim, frames, benches, brass, lanterns — into one mesh per material.
+   This is what takes the scene from ~1,500 draw calls to a few dozen.
+   Anything that changes later (artworks, response cards, the visitors'
+   wall) or is transparent (the picture glass) keeps its own mesh. */
+function mergeStatic(){
+  const keep=new Set();
+  for(const e of exhibitObjs){keep.add(e.mesh);if(e.cardMesh)keep.add(e.cardMesh);}
+  if(codaWallMesh)keep.add(codaWallMesh);
+  const groups=new Map();
+  const all=[];
+  root.traverse(o=>{if(o.isMesh)all.push(o);});
+  for(const m of all){
+    if(keep.has(m)||!m.geometry||!m.material||Array.isArray(m.material))continue;
+    if(m.material.transparent)continue;
+    const key=m.material.uuid+'|'+(m.castShadow?1:0);
+    if(!groups.has(key))groups.set(key,[]);
+    groups.get(key).push(m);
+  }
+  for(const arr of groups.values()){
+    if(arr.length<2)continue;
+    const geoms=[];
+    for(const m of arr){
+      const g=m.geometry.index?m.geometry.toNonIndexed():m.geometry.clone();
+      g.applyMatrix4(m.matrixWorld);
+      for(const name of Object.keys(g.attributes))
+        if(name!=='position'&&name!=='normal'&&name!=='uv')g.deleteAttribute(name);
+      geoms.push(g);
+    }
+    const merged=mergeGeometries(geoms,false);
+    geoms.forEach(g=>{if(g!==merged)g.dispose();});
+    if(!merged)continue;
+    const mesh=new THREE.Mesh(merged,arr[0].material);
+    mesh.castShadow=arr[0].castShadow;
+    mesh.receiveShadow=true;
+    mesh.matrixAutoUpdate=false;
+    root.add(mesh);
+    mesh.updateMatrixWorld(true);
+    for(const m of arr){m.removeFromParent();m.geometry.dispose();}
+  }
 }
 
 /* =====================================================================
@@ -2114,7 +2156,7 @@ function warmTextures(){
 }
 warmTextures();
 
-const SPOT_POOL=8, FILL_POOL=4;
+const SPOT_POOL=6, FILL_POOL=3;
 const spots=[],fills=[];
 for(let i=0;i<SPOT_POOL;i++){
   const s=new THREE.SpotLight(0xffe0ae,0,8.5,Math.PI/6.5,.62,1.7);
@@ -2608,6 +2650,8 @@ window.__g={camera,floorAt,allowed,
   go:(x,z,ry)=>{camera.position.set(x,(floorAt(x,z)??0)+EYE,z);camY=camera.position.y;
     if(ry!==undefined)camera.rotation.set(0,ry,0);},
   zones:Object.keys(ZONES),exhibits:()=>exhibitObjs.length,areas:namedAreas,
+  drawInfo:()=>({calls:renderer.info.render.calls,tris:renderer.info.render.triangles,
+    meshes:(()=>{let n=0;root.traverse(o=>{if(o.isMesh)n++;});return n;})()}),
   artExtents:()=>exhibitObjs.filter(e=>!e.data.introStand&&!e.data.display).map(e=>({
     x:e.pos.x,y:e.pos.y,z:e.pos.z,facing:e.facing,
     w:(e.mesh.geometry.parameters&&e.mesh.geometry.parameters.width)||1,
