@@ -124,8 +124,9 @@
   #rForm .submit{padding:11px}
   @media (pointer:coarse){#keys{display:none}}
   /* ---- pause veil: losing the mouse never leaves the gallery ---- */
-  #pauseVeil{position:fixed;inset:0;z-index:15;display:none;align-items:center;justify-content:center;
+  #pauseVeil{position:fixed;inset:0;z-index:9;display:none;align-items:center;justify-content:center;
     background:rgba(10,7,4,.45);backdrop-filter:blur(2px);cursor:pointer}
+  /* the veil sits under the HUD, so the toolbar stays clickable while paused */
   #pauseVeil.open{display:flex}
   #pauseVeil .pv{text-align:center;padding:26px 46px;border:1px solid var(--hair);
     background:rgba(20,14,9,.78);font-size:22px;color:var(--plaster)}
@@ -161,7 +162,7 @@
     <button id="enterBtn">Enter the gallery</button>
     <div id="keys">
       <div><b>Mouse</b>Look</div><div><b>W A S D</b>Walk</div><div><b>Shift</b>Stride</div>
-      <div><b>E</b>View exhibit</div><div><b>M</b>Gallery map</div><div><b>Esc</b>Release cursor</div>
+      <div><b>E</b>View exhibit</div><div><b>M</b>Gallery map</div><div><b>B</b>Music</div><div><b>Esc</b>Release cursor</div>
     </div>
   </div>
 </div>
@@ -798,6 +799,7 @@ function howToTex(){
       ['LOOK','move the mouse · click the scene if the cursor comes loose'],
       ['E','open the work you are facing — read it, and pin a response'],
       ['M','the gallery map · the small map top-left always shows where you are'],
+      ['B','background music on or off — or the Music button, bottom right'],
       ['PLACARDS','each zone posts a question by its door — walk with it'],
       ['PACE','benches are everywhere; shortcuts to the Coda are signposted if a room is not for today']];
     for(const [k,v] of items){
@@ -919,7 +921,8 @@ function musicCredTex(){
     x.font='22px Georgia, serif';x.fillStyle='#5b4325';
     x.fillText('http://incompetech.com/',140,y);y+=52;
     x.font='italic 22px Georgia, serif';x.fillStyle='rgba(140,100,45,.95)';
-    x.fillText('The Music button, bottom right, turns it on and off.',52,y);
+    x.fillText('Press B — or the Music button, bottom right —',52,y);y+=30;
+    x.fillText('to turn it on and off.',52,y);
     grain(x,W,H,8);
   }));
 }
@@ -1685,7 +1688,7 @@ function buildGallery(){
       const nx2=Math.sin(rot),nz2=Math.cos(rot);
       hang(items[i],px+nx2*.22,pz+nz2*.22,rot,2.3,10);
     });
-    standPlacard('fir',17.4,42.3,2.6);   // by the entrance from the hall
+    standPlacard('fir',17.7,41.5,-2.38);   // by the entrance, clear of the hung work
   }
 
   /* -- 3 · Hands & Touch (abuts the diamond; the first pairing corner
@@ -1910,6 +1913,7 @@ function buildGallery(){
       const lo=s1wH(39.5),hi=s1wH(24);
       box(39.5-24,hi+2.9-lo+.3,T/2,(24+39.5)/2,(lo-.3+hi+2.9)/2,32+T/4,wallMat,false);
       box(39.5-21,s1wH(21)+2.9-s1wH(39.5)+.3,T/2,(21+39.5)/2,(s1wH(39.5)-.3+s1wH(21)+2.9)/2,35-T/4,wallMat,false);
+      box(T/2,3.7,3.1,21+T/4,.8+1.5,33.5,wallMat,false);   // west end cap
     }
     wRect(21.1,40.4,32.34,34.66,(x,z)=>s1wH(x));
     // east leg (descending to the Coda door)
@@ -2256,6 +2260,9 @@ function setMusic(on,play=true){
 }
 setMusic(musicOn,false);
 musBtn.onclick=()=>setMusic(!musicOn);
+addEventListener('keydown',e=>{
+  if(e.code==='KeyB'&&!sheetOpen)setMusic(!musicOn);   // works while walking or paused
+});
 const detail=$('detailSheet'),dirSheet=$('dirSheet'),upSheet=$('upSheet'),mapSheet=$('mapSheet');
 let sheetOpen=false;
 const openSheet=el=>{el.classList.add('open');sheetOpen=true;
