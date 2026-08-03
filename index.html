@@ -812,6 +812,87 @@ function howToTex(){
   }));
 }
 
+/* ---- the worked example: one complete exhibit, image and all, so
+   visitors can see what a finished piece will feel like ---- */
+const EXAMPLE_IMG=(()=>{
+  const c=cvs(1150,1500,(x,W,H)=>{
+    // watercolour paper
+    x.fillStyle='#f4efe2';x.fillRect(0,0,W,H);
+    for(let i=0;i<2200;i++){
+      x.fillStyle=`rgba(${200+Math.random()*30},${192+Math.random()*28},${170+Math.random()*26},.12)`;
+      x.beginPath();x.arc(Math.random()*W,Math.random()*H,Math.random()*7,0,7);x.fill();
+    }
+    // cool wall wash, loose layered blobs
+    for(let i=0;i<60;i++){
+      const g=x.createRadialGradient(Math.random()*W,Math.random()*H*.72,10,
+        Math.random()*W,Math.random()*H*.72,120+Math.random()*260);
+      g.addColorStop(0,`rgba(${96+Math.random()*40},${116+Math.random()*36},${138+Math.random()*30},.10)`);
+      g.addColorStop(1,'rgba(120,140,160,0)');
+      x.fillStyle=g;x.fillRect(0,0,W,H*.78);
+    }
+    // floor
+    const fg=x.createLinearGradient(0,H*.68,0,H);
+    fg.addColorStop(0,'rgba(126,110,92,.4)');fg.addColorStop(1,'rgba(78,66,54,.62)');
+    x.fillStyle=fg;x.fillRect(0,H*.68,W,H*.32);
+    // the window, tall and warm
+    const wx=610,wy=150,ww=380,wh=760;
+    x.fillStyle='rgba(64,72,84,.85)';x.fillRect(wx-26,wy-26,ww+52,wh+52);
+    const wg=x.createLinearGradient(wx,wy,wx,wy+wh);
+    wg.addColorStop(0,'#f6e3b0');wg.addColorStop(.55,'#f3d493');wg.addColorStop(1,'#e9ba79');
+    x.fillStyle=wg;x.fillRect(wx,wy,ww,wh);
+    // a suggestion of sky and rooftops through the glass
+    x.fillStyle='rgba(255,250,230,.5)';x.fillRect(wx,wy,ww,wh*.42);
+    x.fillStyle='rgba(150,120,86,.32)';
+    x.fillRect(wx,wy+wh*.62,ww*.34,wh*.38);x.fillRect(wx+ww*.55,wy+wh*.7,ww*.45,wh*.3);
+    // mullions
+    x.fillStyle='rgba(64,72,84,.9)';
+    x.fillRect(wx+ww/2-9,wy,18,wh);x.fillRect(wx,wy+wh/2-9,ww,18);
+    // light falling onto the floor
+    x.globalAlpha=.35;
+    const lg=x.createLinearGradient(0,wy+wh,0,H);
+    lg.addColorStop(0,'#f3d493');lg.addColorStop(1,'rgba(243,212,147,0)');
+    x.fillStyle=lg;
+    x.beginPath();x.moveTo(wx-10,wy+wh);x.lineTo(wx+ww+10,wy+wh);
+    x.lineTo(wx+ww+230,H);x.lineTo(wx-260,H);x.closePath();x.fill();
+    x.globalAlpha=1;
+    // the empty chair, dark and simple, facing the window
+    x.fillStyle='rgba(42,58,64,.88)';
+    x.fillRect(300,860,206,26);                    // seat
+    x.fillRect(300,640,26,246);                    // back
+    x.fillRect(306,886,18,180);x.fillRect(472,886,18,180);   // legs
+    x.fillRect(300,700,180,16);                    // back rail
+    // its long shadow away from the window
+    x.fillStyle='rgba(40,44,52,.22)';
+    x.beginPath();x.moveTo(300,1066);x.lineTo(500,1066);x.lineTo(160,1330);x.lineTo(20,1330);x.closePath();x.fill();
+    // watercolour speckle + soft vignette
+    for(let i=0;i<380;i++){
+      x.fillStyle=`rgba(${70+Math.random()*60},${76+Math.random()*56},${86+Math.random()*40},.07)`;
+      x.beginPath();x.arc(Math.random()*W,Math.random()*H,Math.random()*3.4,0,7);x.fill();
+    }
+    const vg=x.createRadialGradient(W/2,H/2,H*.3,W/2,H/2,H*.75);
+    vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(46,40,30,.24)');
+    x.fillStyle=vg;x.fillRect(0,0,W,H);
+    grain(x,W,H,9);
+  });
+  return c.toDataURL('image/jpeg',.85);
+})();
+EXHIBITS.unshift({
+  id:++_id,zid:'thr',wing:ZONES.thr.name,
+  title:'The Waiting Room Window',
+  author:'Worked example · sample piece, not student work',
+  type:'image',aspect:1150/1500,img:EXAMPLE_IMG,
+  excerpt:'A worked example of a finished exhibit — the picture, this label, and the full narrative behind it. Press E to open it exactly as a visitor would: read the story, zoom the image, and pin a response.',
+  text:`This is a worked example, so you can feel what a finished exhibit will be like. The picture and the words are samples — no student work is shown anywhere in this preview.
+
+On my first placement I spent most of a morning in the waiting room, because nobody had told me where else to be. I counted the chairs. I watched the window instead of the patients, because watching the patients felt like staring.
+
+An older man sat by the window for over an hour. When his name was finally called he stood slowly, touched the back of the chair as if to thank it, and left his newspaper folded on the seat for whoever came next.
+
+I painted the chair after he had gone. The warm light is the window; the cold wash is the room; the chair is the hour in between — the part of healthcare that happens before any of us are in the room.
+
+When the real gallery opens, a student's own image hangs in this frame, and their own words sit exactly where these do. Below, visitors' responses gather — try pinning one now.`
+});
+
 /* ---- atrium credit placards: the music, and the makers ---- */
 function musicCredTex(){
   return tex(cvs(950,700,(x,W,H)=>{
@@ -1425,6 +1506,25 @@ function conn(x0,x1,z0,z1,h,axis,opts={}){
   }
 }
 
+/* ---- rotunda doorway portal: an apron floor just below datum (so the
+   sliver between the curved drum and the straight neighbour is never
+   bare void), two reveal walls, and a soffit — the drum openings read
+   as proper doorways and nothing behind the drum is visible ---- */
+function portal(x0,x1,z0,z1,h,axis,opts={}){
+  const mat=opts.mat||M.wall;
+  floorRect(x0-.25,x1+.25,z0-.25,z1+.25,h-.002,M.floor);
+  if(!opts.noCeil)ceilRect(x0,x1,z0,z1,h+3.06,M.ceil);
+  if(axis==='x'){  // walking east-west: reveals north + south
+    // reveals are deliberately chunky: the drum wall is built from arc
+    // segments, so a thin reveal could leave a sliver at the gap's edge
+    box(x1-x0,3.7,.44,(x0+x1)/2,h+1.55,z0,mat,false);
+    box(x1-x0,3.7,.44,(x0+x1)/2,h+1.55,z1,mat,false);
+  }else{
+    box(.44,3.7,z1-z0,x0,h+1.55,(z0+z1)/2,mat,false);
+    box(.44,3.7,z1-z0,x1,h+1.55,(z0+z1)/2,mat,false);
+  }
+}
+
 /* ---- elliptical rotunda ---- */
 function ellipseRoom(zid,cx,cz,rx,rz,h,doors,opts={}){
   const z2=ZONES[zid], H=z2.H, N=56;
@@ -1546,6 +1646,10 @@ function buildGallery(){
     const pos=new THREE.Vector3(9.25,1.45,41.6);
     exhibitObjs.push({mesh:sheet,group:lg,data:{introStand:true},pos,facing:0,
       lampPos:new THREE.Vector3(9.25,3.6,42.5),aimPos:pos,spotI:10});
+    // the worked example exhibit hangs on the south wall, complete with
+    // its label, lamp and response card
+    const ex=zoneItems('thr')[0];
+    if(ex)hang(ex,15.2,45-T/2-.12,Math.PI,3.2,10);
   }
 
   /* -- 2 · Firsts (the diamond room, opening straight off the hall) -- */
@@ -1660,6 +1764,13 @@ function buildGallery(){
     shortcutSign('Shortcut · to the Coda',21.15,.8+DOOR_H+.4,30.05,Math.PI*.78);
   }
   wRect(11.6,13.4,26.1,28.4,.8);   // doorway strip: the Crossing → Courtyard
+  /* portals seal every opening in the Crossing's drum */
+  portal(23.4,24.7,26.0,28.5,.8,'x',{mat:wingWallMat('hub')});          // → Person
+  portal(12.3,13.6,26.0,28.5,.8,'x',{mat:wingWallMat('hub')});          // → Courtyard
+  portal(15.0,17.5,22.3,24.0,.8,'z',{mat:wingWallMat('hub')});          // → the Landing
+  portal(21,24,29.9,32.2,.8,'z',{mat:wingWallMat('hub'),noCeil:true});  // → shortcut stub
+  floorRect(13.4,19.1,22.2,24.4,.798,M.floor);                          // wide aprons under
+  floorRect(20.7,24.3,29.6,32.3,.798,M.floor);                          // the slanted arches
   rectRoom('cty',2,12.5,22.5,32,.8,{
     doors:[{side:'E',c:27.25,w:3.0,dest:'hub'}],
     placard:{side:'E',c:30.1},artWalls:['W','N'],floorMat:M.stone,
@@ -1722,6 +1833,11 @@ function buildGallery(){
       st.position.set(px,.8+.23,pz);st.castShadow=true;st.receiveShadow=true;root.add(st);
     }
     standPlacard('unc',42.9,9.7,-0.87);   // by the west entrance
+    /* portals seal the dusk rotunda's three openings */
+    portal(40.4,41.9,10.15,12.45,.8,'x',{mat:wingWallMat('unc')});
+    portal(50.1,51.6,10.15,12.45,.8,'x',{mat:wingWallMat('unc')});
+    portal(46.1,48.9,13.3,15.7,.8,'z',{mat:wingWallMat('unc')});
+    floorRect(45.4,49.6,13.2,15.8,.798,M.floor);
   }
   conn(51,53,9,13.5,.8,'x',{door:[10.2,12.4]});
   /* -- 11 · Beginnings & Renewal -- */
