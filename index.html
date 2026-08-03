@@ -122,11 +122,11 @@
   #rForm input:focus,#rForm textarea:focus{border-color:var(--brass)}
   #rForm textarea{min-height:70px;resize:vertical}
   #rForm .submit{padding:11px}
-  #calmRow{display:flex;gap:8px;justify-content:center;align-items:center;margin-top:18px;
-    font-size:12.5px;color:rgba(232,221,201,.55)}
-  #calmRow input{accent-color:var(--brass)}
-  #calmRow label{cursor:pointer}
   @media (pointer:coarse){#keys{display:none}}
+  /* ---- minimap ---- */
+  #minimap{position:absolute;left:16px;top:16px;width:236px;height:auto;opacity:.82;
+    border:1px solid var(--hair);border-radius:6px;pointer-events:none}
+  @media (max-width:700px){#minimap{width:170px}}
   /* ---- touch controls ---- */
   #joyBase{position:fixed;width:116px;height:116px;border-radius:50%;border:1.5px solid rgba(232,221,201,.4);
     background:rgba(20,14,9,.35);display:none;z-index:12;pointer-events:none;backdrop-filter:blur(2px)}
@@ -151,7 +151,6 @@
       This is a layout preview. Every exhibit is a placeholder — no student work is shown.<br>
       Each zone carries a placard with a question to walk with.</div>
     <button id="enterBtn">Enter the gallery</button>
-    <div id="calmRow"><input type="checkbox" id="calmMove"><label for="calmMove">Steady camera (reduce motion)</label></div>
     <div id="keys">
       <div><b>Mouse</b>Look</div><div><b>W A S D</b>Walk</div><div><b>Shift</b>Stride</div>
       <div><b>E</b>View exhibit</div><div><b>M</b>Gallery map</div><div><b>Esc</b>Release cursor</div>
@@ -162,6 +161,7 @@
 <div id="joyBase"><div id="joyKnob"></div></div>
 <div id="fullView"></div>
 <div id="hud">
+  <canvas id="minimap" width="472" height="364"></canvas>
   <div id="reticle"></div>
   <div id="roomTag">Now entering<span id="roomName">The Vestibule</span></div>
   <div id="prompt">Press E to view</div>
@@ -381,7 +381,7 @@ const cvs=(w,h,draw)=>{const c=document.createElement('canvas');
   c.width=Math.round(w*TEX_F);c.height=Math.round(h*TEX_F);
   const x=c.getContext('2d');x.scale(TEX_F,TEX_F);draw(x,w,h);return c;};
 const tex=(c,srgb=true)=>{const t=new THREE.CanvasTexture(c);if(srgb)t.colorSpace=THREE.SRGBColorSpace;
-  t.anisotropy=8;t.wrapS=t.wrapT=THREE.RepeatWrapping;return t;};
+  t.anisotropy=4;t.wrapS=t.wrapT=THREE.RepeatWrapping;return t;};
 
 function normalMap(src,strength=2.2){
   const w=src.width,h=src.height,s=src.getContext('2d').getImageData(0,0,w,h).data;
@@ -870,7 +870,7 @@ const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.08,160);
 camera.rotation.order='YXZ';
 
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
-renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.25));
 renderer.setSize(innerWidth,innerHeight);
 renderer.shadowMap.enabled=true;
 renderer.shadowMap.type=THREE.PCFSoftShadowMap;
@@ -1308,7 +1308,7 @@ function conn(x0,x1,z0,z1,h,axis,opts={}){
 
 /* ---- elliptical rotunda ---- */
 function ellipseRoom(zid,cx,cz,rx,rz,h,doors,opts={}){
-  const z2=ZONES[zid], H=z2.H, N=72;
+  const z2=ZONES[zid], H=z2.H, N=56;
   const wallMat=wingWallMat(zid);
   const P=u=>[cx+rx*Math.cos(u),cz+rz*Math.sin(u)];
   const inGap=u=>doors.some(d=>{
@@ -1345,7 +1345,9 @@ function ellipseRoom(zid,cx,cz,rx,rz,h,doors,opts={}){
     if(!items[i])return;
     const px=cx+(rx-.28)*Math.cos(u), pz=cz+(rz-.28)*Math.sin(u);
     const rot=Math.atan2(cx-px,cz-pz);
-    hang(items[i],px,pz,rot,2.2,z2.dark?13:10);
+    // flat side labels would float off the curved drum — the drum hangs
+    // its works unlabelled; the zone placard and E carry the words
+    hang({...items[i],excerpt:undefined},px,pz,rot,2.2,z2.dark?13:10);
   });
   return r;
 }
@@ -1363,8 +1365,8 @@ function shortcutSign(text,x,y,z,rot){
 }
 
 /* ---- ramp height profiles ---- */
-const worH=z=> z>=40?0 : z>=35?0.25*(40-z)/5 : z>=33?0.25
-             : z>=26.5?0.25+0.55*(33-z)/6.5 : 0.8;
+const worH=z=> z>=40?0 : z>=35?0.25*(40-z)/5 : z>=32.4?0.25
+             : z>=26.5?0.25+0.55*(32.4-z)/5.9 : 0.8;
 const desH=z=> z<=29.5?0.8 : z>=35?0 : 0.8*(35-z)/5.5;
 const s1wH=x=> x<=24.5?0.8 : x>=39.5?0.25 : 0.8-0.55*(x-24.5)/15;
 const s1eH=x=> x>=50?0 : 0.25*(50-x)/6.5;
@@ -1397,7 +1399,7 @@ function buildGallery(){
 
   /* -- 1 · Threshold & Orientation -- */
   rectRoom('thr',3,12,38,42.5,0,{
-    doors:[{side:'W',c:40.25,w:2.6},{side:'E',c:40.25,w:2.2,dest:'fir'}],
+    doors:[{side:'W',c:40.25,w:2.6},{side:'E',c:40.25,w:3.0,dest:'fir'}],
     placard:{side:'S',c:10.3},noArt:true});
   const t=new THREE.Mesh(new THREE.PlaneGeometry(7.6,2.47),
     new THREE.MeshStandardMaterial({map:bigTitleTex(),roughness:.95}));
@@ -1423,20 +1425,19 @@ function buildGallery(){
     exhibitObjs.push({mesh:sheet,group:lg,data:{introStand:true},pos,facing:0,
       lampPos:new THREE.Vector3(7.5,3.6,42),aimPos:pos,spotI:10});
   }
-  conn(12,16.1,39.15,41.35,0,'x');
-  lightStrip(14,3.05,40.25,2.4,1.2);
+  conn(12,16.5,38.75,41.75,0,'x');
+  lightStrip(14.2,3.05,40.25,2.4,1.4);
 
   /* -- 2 · Firsts (the diamond room) -- */
   {
-    const pts=[[16.1,39.15],[19.25,36],[22.4,39.15],[22.4,41.35],[19.25,44.5],[16.1,41.35]];
+    const pts=[[16.5,38.75],[19.25,36],[22,38.75],[22,41.75],[19.25,44.5],[16.5,41.75]];
     const H=ZONES.fir.H, wallMat=wingWallMat('fir');
-    // walls on the four diagonals; headers over the E and W openings
-    wallSeg(16.1,39.15,19.25,36,-.3,H,wallMat,.2);
-    wallSeg(19.25,36,22.4,39.15,-.3,H,wallMat,.2);
-    wallSeg(22.4,41.35,19.25,44.5,-.3,H,wallMat,.2);
-    wallSeg(19.25,44.5,16.1,41.35,-.3,H,wallMat,.2);
-    wallSeg(22.4,39.15,22.4,41.35,DOOR_H,H,wallMat,.2);
-    wallSeg(16.1,39.15,16.1,41.35,DOOR_H,H,wallMat,.2);
+    wallSeg(16.5,38.75,19.25,36,-.3,H,wallMat,.2);
+    wallSeg(19.25,36,22,38.75,-.3,H,wallMat,.2);
+    wallSeg(22,41.75,19.25,44.5,-.3,H,wallMat,.2);
+    wallSeg(19.25,44.5,16.5,41.75,-.3,H,wallMat,.2);
+    wallSeg(22,38.75,22,41.75,DOOR_H,H,wallMat,.2);
+    wallSeg(16.5,38.75,16.5,41.75,DOOR_H,H,wallMat,.2);
     const shpF=new THREE.Shape();pts.forEach(([px,pz],i)=>i?shpF.lineTo(px,-pz):shpF.moveTo(px,-pz));
     const fg=new THREE.ShapeGeometry(shpF);fg.rotateX(-Math.PI/2);
     const fmesh=new THREE.Mesh(fg,M.floor.clone());fmesh.position.y=.004;fmesh.receiveShadow=true;
@@ -1451,64 +1452,61 @@ function buildGallery(){
     registerRoom('fir',(x,z)=>Math.abs(x-19.25)/4.7+Math.abs(z-40.25)/4.7<1,
       new THREE.Vector3(19.25,H-.5,40.25));
     const items=zoneItems('fir');
-    const wallsMid=[[17.68,37.58,Math.PI/4],[20.83,37.58,-Math.PI/4],
-                    [20.83,42.93,-Math.PI*3/4],[17.68,42.93,Math.PI*3/4]];
+    const wallsMid=[[17.88,37.38,Math.PI/4],[20.63,37.38,-Math.PI/4],
+                    [20.63,43.13,-Math.PI*3/4],[17.88,43.13,Math.PI*3/4]];
     wallsMid.forEach(([px,pz,rot],i)=>{
       if(!items[i])return;
       const nx2=Math.sin(rot),nz2=Math.cos(rot);
-      hang(items[i],px+nx2*.22,pz+nz2*.22,rot,2.4,10);
+      hang(items[i],px+nx2*.22,pz+nz2*.22,rot,2.3,10);
     });
-    standPlacard('fir',17.5,42.35,2.6);
+    standPlacard('fir',17.6,42.5,2.6);
   }
-  conn(22.4,26,39.15,41.35,0,'x');
-  lightStrip(24.2,3.05,40.25,2.4,1.2);
+  conn(22,26,38.75,41.75,0,'x');
+  lightStrip(24,3.05,40.25,2.4,1.4);
 
   /* -- 3 · Hands & Touch -- */
   rectRoom('han',26,36.5,37,43.5,0,{
-    doors:[{side:'W',c:40.25,w:2.2,dest:'fir'},{side:'E',c:40.25,w:2.2,dest:'wor'}],
+    doors:[{side:'W',c:40.25,w:3.0,dest:'fir'},{side:'E',c:40.25,w:3.0,dest:'wor'}],
     placard:{side:'N',c:28.4},plinthAt:[31.25,40.6],
-    benches:[[31.25,42.1,Math.PI,2.6]]});
+    benches:[[31.25,42.2,Math.PI,2.6]]});
 
   /* -- connector 3→4 with the first pairing alcove -- */
-  floorRect(36.5,39.5,39.15,41.35,.004,M.floor,Math.PI/2);
-  ceilRect(36.5,39.5,39.15,41.35,3.15,M.ceil);
-  floorRect(36.9,39.3,37.4,39.15,.004,M.floor);
-  ceilRect(36.9,39.3,37.4,39.15,3.15,M.ceil);
-  box(3,3.55,T/2,38,1.45,41.35-T/4,M.wall,false);              // south wall
-  box(.4,3.55,T/2,36.7,1.45,39.15-T/4,M.wall,false);           // north wall stubs
-  box(.2,3.55,T/2,39.4,1.45,39.15-T/4,M.wall,false);
-  box(2.4,3.55,T/2,38.1,1.45,37.4+T/4,M.wall,false);           // niche back
-  box(T/2,3.55,1.75,36.9+T/4,1.45,38.28,M.wall,false);         // niche sides
-  box(T/2,3.55,1.75,39.3-T/4,1.45,38.28,M.wall,false);
-  lightStrip(38,3.05,40.25,2.2,1.2);lightStrip(38.1,3.05,38.3,1.6,1.0);
-  addBench(38.1,38.35,0,1.8);
-  alcovePanel(38.1,37.4+T/2+.03,0,0);
-  wRect(35.5,40.5,39.49,41.01,0);wRect(37.24,38.96,37.7,39.6,0);
-  namedAreas.push({name:'Pairing alcove',contains:(x,z)=>x>36.8&&x<39.4&&z>37.3&&z<39.2});
+  floorRect(36.5,39.5,38.75,41.75,.004,M.floor,Math.PI/2);
+  ceilRect(36.5,39.5,38.75,41.75,3.15,M.ceil);
+  floorRect(36.9,39.3,37,38.75,.004,M.floor);
+  ceilRect(36.9,39.3,37,38.75,3.15,M.ceil);
+  box(3,3.55,T/2,38,1.45,41.75-T/4,M.wall,false);              // south wall
+  box(.4,3.55,T/2,36.7,1.45,38.75-T/4,M.wall,false);           // north wall stubs
+  box(.2,3.55,T/2,39.4,1.45,38.75-T/4,M.wall,false);
+  box(2.4,3.55,T/2,38.1,1.45,37+T/4,M.wall,false);             // niche back
+  box(T/2,3.55,1.75,36.9+T/4,1.45,37.88,M.wall,false);         // niche sides
+  box(T/2,3.55,1.75,39.3-T/4,1.45,37.88,M.wall,false);
+  lightStrip(38,3.05,40.25,2.2,1.4);lightStrip(38.1,3.05,37.9,1.6,1.0);
+  addBench(38.1,37.95,0,1.8);
+  alcovePanel(38.1,37+T/2+.03,0,0);
+  wRect(35.5,40.5,39.09,41.41,0);wRect(37.24,38.96,37.3,39.2,0);
+  namedAreas.push({name:'Pairing alcove',contains:(x,z)=>x>36.8&&x<39.4&&z>36.9&&z<38.8});
 
   /* -- 4 · Words Beyond Language: the rising gallery -- */
   {
     const H=3.8, wallMat=wingWallMat('wor');
-    // floor + ceiling in four pitches
-    for(const [za,zb] of [[22,26.5],[26.5,33],[33,35],[35,40],[40,43.5]]){
+    for(const [za,zb] of [[22,26.5],[26.5,32.4],[32.4,35],[35,40],[40,43.5]]){
       slabFloor(39.5,43.5,za,zb,(x,z)=>worH(z),M.floor);
       slabCeil(39.5,43.5,za,zb,(x,z)=>worH(z),H,M.ceil);
     }
-    // west wall: gaps for c4 (upper), s1 landing, c3 (lower)
-    const wSegW=[[26.2,33],[35,39.15],[41.35,43.5]];
-    const gapsW=[[24,26.2,.8],[33,35,.25],[39.15,41.35,0]];
-    for(const [a,b] of [[22,24],...wSegW]){
+    // west wall: gaps for c4 (upper), the s1 crossing, c3 (lower)
+    const gapsW=[[23.6,26.6,.8],[32.4,35,.25],[38.75,41.75,0]];
+    for(const [a,b] of [[22,23.6],[26.6,32.4],[35,38.75],[41.75,43.5]]){
       const lo=Math.min(worH(a),worH(b)), hi=Math.max(worH(a),worH(b));
       box(T/2,hi+H-lo+.3,b-a,39.5+T/4,(lo-.3+hi+H)/2,(a+b)/2,wallMat,false);
     }
-    // headers over west gaps
     for(const [g0,g1,base] of gapsW){
       const top=Math.max(worH(g0),worH(g1))+H;
       box(T/2,top-(base+DOOR_H),g1-g0+.12,39.5+T/4,(base+DOOR_H+top)/2,(g0+g1)/2,wallMat,false);
     }
-    // east wall: gaps for s2 (upper) and s1 landing
-    const gapsE=[[22.2,24.4,.8],[33,35,.25]];
-    for(const [a,b] of [[24.4,33],[35,43.5]]){
+    // east wall: gaps for s2 (upper) and the s1 crossing
+    const gapsE=[[22,25,.8],[32.4,35,.25]];
+    for(const [a,b] of [[25,32.4],[35,43.5]]){
       const lo=Math.min(worH(a),worH(b)), hi=Math.max(worH(a),worH(b));
       box(T/2,hi+H-lo+.3,b-a,43.5-T/4,(lo-.3+hi+H)/2,(a+b)/2,wallMat,false);
     }
@@ -1518,35 +1516,35 @@ function buildGallery(){
     }
     box(4,H+1.1,T/2,41.5,.8+(H-.3)/2,22+T/4,wallMat,false);      // north end wall
     box(4,H+.3,T/2,41.5,(H-.3)/2,43.5-T/4,wallMat,false);        // south end wall
-    lightStrip(41.5,worH(29.75)+H-.06,29.75,2.4,4);
+    lightStrip(41.5,worH(29.5)+H-.06,29.5,2.4,4);
     lightStrip(41.5,worH(37.5)+H-.06,37.5,2.4,3);
     lightStrip(41.5,worH(42)+H-.06,42,2.4,2);
     wRect(39.95,43.05,22.45,43.06,(x,z)=>worH(z));
     registerRoom('wor',(x,z)=>x>39.1&&x<43.9&&z>21.6&&z<43.9,
       new THREE.Vector3(41.5,worH(32)+H-.4,32));
     const items=zoneItems('wor');
-    const spots=[[39.5+T/2+.12,28.2,Math.PI/2],[39.5+T/2+.12,31,Math.PI/2],[39.5+T/2+.12,37,Math.PI/2],
-                 [43.5-T/2-.12,26.5,-Math.PI/2],[43.5-T/2-.12,30.2,-Math.PI/2],[43.5-T/2-.12,38.3,-Math.PI/2]];
+    const spots=[[39.5+T/2+.12,28.7,Math.PI/2],[39.5+T/2+.12,31.1,Math.PI/2],[39.5+T/2+.12,37,Math.PI/2],
+                 [43.5-T/2-.12,27.2,-Math.PI/2],[43.5-T/2-.12,30.4,-Math.PI/2],[43.5-T/2-.12,38.5,-Math.PI/2]];
     spots.forEach(([px,pz,rot],i)=>{ if(items[i])hang(items[i],px,pz,rot,2.1,10); });
     wallPlacard('wor',43.5-T/2-.06,41.9,-Math.PI/2,0);
-    shortcutSign('Shortcut · to Sitting with Uncertainty',43.4,worH(23.3)+DOOR_H+.35,23.3,-Math.PI/2);
-    shortcutSign('Shortcut · down to the Coda',43.4,worH(34)+DOOR_H+.32,34,-Math.PI/2);
+    shortcutSign('Shortcut · to Sitting with Uncertainty',43.4,worH(23.5)+DOOR_H+.35,23.5,-Math.PI/2);
+    shortcutSign('Shortcut · down to the Coda',43.4,worH(33.7)+DOOR_H+.32,33.7,-Math.PI/2);
   }
-  conn(37,39.5,24,26.2,.8,'x');
-  lightStrip(38.2,.8+3.05,25.1,1.8,1.2);
+  conn(37,39.5,23.6,26.6,.8,'x');
+  lightStrip(38.2,.8+3.05,25.1,1.8,1.4);
 
   /* ================= ACT II ================= */
   /* -- 5 · The Person Behind the Patient -- */
   rectRoom('per',26,37,23,32,.8,{
-    doors:[{side:'E',c:25.1,w:2.2,dest:'wor'},{side:'W',c:27.25,w:2.2,dest:'hub'}],
+    doors:[{side:'E',c:25.1,w:3.0,dest:'wor'},{side:'W',c:27.25,w:3.0,dest:'hub'}],
     placard:{side:'N',c:34.2},benches:[[31.5,29.6,Math.PI,3.0]]});
-  conn(24.5,26,26.15,28.35,.8,'x');
+  conn(24.5,26,25.75,28.75,.8,'x');
 
   /* -- 6 · The Crossing (rotunda) + One Health Courtyard -- */
   ellipseRoom('hub',18.5,27.25,6,4.75,.8,[
-    {u:0,hw:.22},{u:Math.PI,hw:.24},{u:-1.955,hw:.27},{u:.842,hw:.26}]);
+    {u:0,hw:.3},{u:Math.PI,hw:.3},{u:-1.955,hw:.32},{u:.842,hw:.28}]);
   {
-    const ring=new THREE.Mesh(new THREE.TorusGeometry(1.7,.045,10,64),M.brass);
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(1.7,.045,8,48),M.brass);
     ring.rotation.x=Math.PI/2;ring.position.set(18.5,.815,27.25);root.add(ring);
     for(const u of [1.5,2.4,-0.95,-2.65]){
       addBench(18.5+2.5*Math.cos(u),27.25+2.1*Math.sin(u),-(u+Math.PI/2),2.0);
@@ -1554,9 +1552,9 @@ function buildGallery(){
     standPlacard('hub',22.45,28.9,2.21);
     shortcutSign('Shortcut · to the Coda',21.15,.8+DOOR_H+.4,30.05,Math.PI*.78);
   }
-  conn(11,12.5,26.15,28.35,.8,'x');
+  conn(11,12.5,25.75,28.75,.8,'x');
   rectRoom('cty',2,11,22.5,32,.8,{
-    doors:[{side:'E',c:27.25,w:2.2,dest:'hub'}],
+    doors:[{side:'E',c:27.25,w:3.0,dest:'hub'}],
     placard:{side:'S',c:4.6},artWalls:['W','N'],floorMat:M.stone,
     noCeil:true,noLantern:true,noCornice:true,benches:[[6.5,30.2,Math.PI,2.6]]});
   {
@@ -1572,44 +1570,44 @@ function buildGallery(){
       }
     }
   }
-  conn(15,17.5,18,23,.8,'z');
-  lightStrip(16.25,.8+3.05,20.5,1.4,3.4);
+  conn(14.75,17.75,18,23,.8,'z');
+  lightStrip(16.25,.8+3.05,20.5,1.6,3.4);
 
   /* ================= ACT III ================= */
   /* -- 7 · Risk, Fear & the Body -- */
   rectRoom('ris',3,18,6,18,.8,{
-    doors:[{side:'S',c:16.25,w:2.5,dest:'hub'},{side:'E',c:11.5,w:2.2,dest:'wgt'}],
-    placard:{side:'S',c:13.1},benches:[[9.5,12.4,0,3.4]]});
-  conn(18,20,10.4,12.6,.8,'x');
+    doors:[{side:'S',c:16.25,w:3.0,dest:'hub'},{side:'E',c:11.5,w:3.0,dest:'wgt'}],
+    placard:{side:'S',c:12.9},benches:[[9.5,12.4,0,3.4]]});
+  conn(18,20,10,13,.8,'x');
   /* -- 8 · The Weight of Decisions -- */
   rectRoom('wgt',20,30,7.5,15.5,.8,{
-    doors:[{side:'W',c:11.5,w:2.2,dest:'ris'},{side:'E',c:11.5,w:2.2,dest:'gri'}],
+    doors:[{side:'W',c:11.5,w:3.0,dest:'ris'},{side:'E',c:11.5,w:3.0,dest:'gri'}],
     placard:{side:'N',c:22.6},benches:[[25,13.9,Math.PI,2.8]]});
   /* -- connector 8→9 with the second pairing alcove -- */
-  floorRect(30,32,10.4,12.6,.804,M.floor,Math.PI/2);
-  ceilRect(30,32,10.4,12.6,.8+3.15,M.ceil);
-  floorRect(30.1,31.9,12.6,14.4,.804,M.floor);
-  ceilRect(30.1,31.9,12.6,14.4,.8+3.15,M.ceil);
-  box(2,3.55,T/2,31,.8+1.45,10.4+T/4,M.wall,false);
-  box(.24,3.55,T/2,30.11,.8+1.45,12.6-T/4,M.wall,false);
-  box(.24,3.55,T/2,31.89,.8+1.45,12.6-T/4,M.wall,false);
-  box(2.1,3.55,T/2,31,.8+1.45,14.4-T/4,M.wall,false);
-  box(T/2,3.55,1.9,30.1+T/4,.8+1.45,13.5,M.wall,false);
-  box(T/2,3.55,1.9,31.9-T/4,.8+1.45,13.5,M.wall,false);
-  lightStrip(31,.8+3.05,11.5,1.4,1.2);lightStrip(31,.8+3.05,13.4,1.3,1.0);
-  addBench(31,13.55,Math.PI,1.7);
-  alcovePanel(31,14.4-T/2-.03,Math.PI,.8);
-  wRect(29,33,10.74,12.26,.8);wRect(30.44,31.56,12.2,13.9,.8);
-  namedAreas.push({name:'Pairing alcove',contains:(x,z)=>x>30&&x<32&&z>12.5&&z<14.5});
+  floorRect(30,32,10,13,.804,M.floor,Math.PI/2);
+  ceilRect(30,32,10,13,.8+3.15,M.ceil);
+  floorRect(30.1,31.9,13,14.8,.804,M.floor);
+  ceilRect(30.1,31.9,13,14.8,.8+3.15,M.ceil);
+  box(2,3.55,T/2,31,.8+1.45,10+T/4,M.wall,false);
+  box(.18,3.55,T/2,30.08,.8+1.45,13-T/4,M.wall,false);
+  box(.18,3.55,T/2,31.92,.8+1.45,13-T/4,M.wall,false);
+  box(2.1,3.55,T/2,31,.8+1.45,14.8-T/4,M.wall,false);
+  box(T/2,3.55,1.9,30.1+T/4,.8+1.45,13.9,M.wall,false);
+  box(T/2,3.55,1.9,31.9-T/4,.8+1.45,13.9,M.wall,false);
+  lightStrip(31,.8+3.05,11.5,1.4,1.4);lightStrip(31,.8+3.05,13.8,1.3,1.0);
+  addBench(31,13.95,Math.PI,1.7);
+  alcovePanel(31,14.8-T/2-.03,Math.PI,.8);
+  wRect(29,33,10.34,12.66,.8);wRect(30.44,31.56,12.6,14.3,.8);
+  namedAreas.push({name:'Pairing alcove',contains:(x,z)=>x>30&&x<32&&z>13&&z<14.9});
   /* -- 9 · Grief, Loss & Memory -- */
   rectRoom('gri',32,39,8.5,15.5,.8,{
-    doors:[{side:'W',c:11.5,w:2.2,dest:'wgt'},{side:'E',c:11.5,w:2.2,dest:'unc'}],
+    doors:[{side:'W',c:11.5,w:3.0,dest:'wgt'},{side:'E',c:11.5,w:3.0,dest:'unc'}],
     placard:{side:'N',c:33.9},artWalls:['N','S'],
     benches:[[35.5,13.7,Math.PI,2.6],[35.5,10.3,0,2.6]]});
-  conn(39,41,10.4,12.6,.8,'x');
+  conn(39,41,10,13,.8,'x');
   /* -- 10 · Sitting with Uncertainty (dusk rotunda) -- */
   ellipseRoom('unc',46,11.25,5,3.75,.8,[
-    {u:0,hw:.28},{u:Math.PI,hw:.28},{u:1.711,hw:.32}],
+    {u:0,hw:.34},{u:Math.PI,hw:.34},{u:1.691,hw:.38}],
     {artUs:[-2.2,-0.9,2.5]});
   {
     for(const [px,pz] of [[45,10.3],[47.3,11.9],[44.5,12.5]]){
@@ -1618,60 +1616,60 @@ function buildGallery(){
     }
     standPlacard('unc',42.9,9.7,-0.87);
   }
-  conn(51,53,10.15,12.35,.8,'x');
+  conn(51,53,9.75,12.75,.8,'x');
   /* -- 11 · Beginnings & Renewal -- */
   rectRoom('ren',53,62,9,17.5,.8,{
-    doors:[{side:'W',c:11.25,w:2.2,dest:'unc'},{side:'S',c:57.5,w:2.4,dest:'des'}],
+    doors:[{side:'W',c:11.25,w:3.0,dest:'unc'},{side:'S',c:57.5,w:3.0,dest:'des'}],
     placard:{side:'E',c:13.2},plinthAt:[59.6,12.6]});
 
   /* -- The Descent (ramp corridor) + third alcove + Care for the Carer -- */
   {
     const H=3.2, wallMat=wingWallMat('des');
     for(const [za,zb] of [[17.5,29.5],[29.5,35]]){
-      slabFloor(56,59,za,zb,(x,z)=>desH(z),M.floor);
-      slabCeil(56,59,za,zb,(x,z)=>desH(z),H,M.ceil);
+      slabFloor(55.7,59.3,za,zb,(x,z)=>desH(z),M.floor);
+      slabCeil(55.7,59.3,za,zb,(x,z)=>desH(z),H,M.ceil);
     }
     // west wall with the Care door
-    for(const [a,b] of [[17.5,25.4],[27.6,35]]){
+    for(const [a,b] of [[17.5,25],[28,35]]){
       const lo=Math.min(desH(a),desH(b)),hi=Math.max(desH(a),desH(b));
-      box(T/2,hi+H-lo+.3,b-a,56+T/4,(lo-.3+hi+H)/2,(a+b)/2,wallMat,false);
+      box(T/2,hi+H-lo+.3,b-a,55.7+T/4,(lo-.3+hi+H)/2,(a+b)/2,wallMat,false);
     }
-    box(T/2,H-DOOR_H,2.32,56+T/4,.8+DOOR_H+(H-DOOR_H)/2,26.5,wallMat,false);
+    box(T/2,H-DOOR_H,3.12,55.7+T/4,.8+DOOR_H+(H-DOOR_H)/2,26.5,wallMat,false);
     // east wall with the alcove niche
     for(const [a,b] of [[17.5,25.9],[28.1,35]]){
       const lo=Math.min(desH(a),desH(b)),hi=Math.max(desH(a),desH(b));
-      box(T/2,hi+H-lo+.3,b-a,59-T/4,(lo-.3+hi+H)/2,(a+b)/2,wallMat,false);
+      box(T/2,hi+H-lo+.3,b-a,59.3-T/4,(lo-.3+hi+H)/2,(a+b)/2,wallMat,false);
     }
-    floorRect(59,60.4,25.9,28.1,.804,M.floor);
-    ceilRect(59,60.4,25.9,28.1,.8+H,M.ceil);
-    box(1.6,H+.3,T/2,59.6,.8+(H-.3)/2,25.9+T/4,wallMat,false);
-    box(1.6,H+.3,T/2,59.6,.8+(H-.3)/2,28.1-T/4,wallMat,false);
-    box(T/2,H+.3,2.2,60.4-T/4,.8+(H-.3)/2,27,wallMat,false);
-    addBench(59.75,27,-(Math.PI/2),1.8);
-    alcovePanel(60.4-T/2-.03,27,-Math.PI/2,.8);
+    floorRect(59.3,60.7,25.9,28.1,.804,M.floor);
+    ceilRect(59.3,60.7,25.9,28.1,.8+H,M.ceil);
+    box(1.6,H+.3,T/2,60,.8+(H-.3)/2,25.9+T/4,wallMat,false);
+    box(1.6,H+.3,T/2,60,.8+(H-.3)/2,28.1-T/4,wallMat,false);
+    box(T/2,H+.3,2.2,60.7-T/4,.8+(H-.3)/2,27,wallMat,false);
+    addBench(60.05,27,-(Math.PI/2),1.8);
+    alcovePanel(60.7-T/2-.03,27,-Math.PI/2,.8);
     lightStrip(57.5,.8+H-.06,21,1.6,2.6);lightStrip(57.5,desH(32)+H-.06,32,1.6,2);
-    lightStrip(59.7,.8+H-.06,27,1.0,1.4);
-    wRect(56.45,58.55,17.4,35.9,(x,z)=>desH(z));
-    wRect(56.3,58.7,16.7,18.3,.8);        // doorway strip: Renewal → Descent
-    wRect(54.9,57.0,25.6,27.4,.8);        // doorway strip: Care for the Carer → Descent
-    wRect(58.4,60,25.9+.34,28.1-.34,.8);
-    registerRoom('des',(x,z)=>x>55.6&&x<59.4&&z>17.1&&z<35.4,
+    lightStrip(60,.8+H-.06,27,1.0,1.4);
+    wRect(56.15,58.85,17.4,35.9,(x,z)=>desH(z));
+    wRect(56.2,58.8,16.7,18.3,.8);        // doorway strip: Renewal → Descent
+    wRect(54.6,56.8,25.2,27.8,.8);        // doorway strip: Care for the Carer → Descent
+    wRect(58.7,60.3,26.24,27.76,.8);      // alcove
+    registerRoom('des',(x,z)=>x>55.3&&x<59.7&&z>17.1&&z<35.4,
       new THREE.Vector3(57.5,.8+H-.4,23));
     const items=zoneItems('des');
-    const spots=[[56+T/2+.12,20,Math.PI/2],[56+T/2+.12,23,Math.PI/2],[59-T/2-.12,21.5,-Math.PI/2]];
+    const spots=[[55.7+T/2+.12,20,Math.PI/2],[55.7+T/2+.12,23,Math.PI/2],[59.3-T/2-.12,21.5,-Math.PI/2]];
     spots.forEach(([px,pz,rot],i)=>{ if(items[i])hang(items[i],px,pz,rot,2.1,10); });
-    wallPlacard('des',59-T/2-.06,19,-Math.PI/2,.8);
-    namedAreas.push({name:'Pairing alcove',contains:(x,z)=>x>59&&x<60.5&&z>25.8&&z<28.2});
+    wallPlacard('des',59.3-T/2-.06,18.6,-Math.PI/2,.8);
+    namedAreas.push({name:'Pairing alcove',contains:(x,z)=>x>59.3&&x<60.8&&z>25.8&&z<28.2});
   }
-  rectRoom('car',48.5,56,23.5,29.5,.8,{
-    doors:[{side:'E',c:26.5,w:2.2,dest:'des'}],
+  rectRoom('car',48.5,55.7,23.5,29.5,.8,{
+    doors:[{side:'E',c:26.5,w:3.0,dest:'des'}],
     placard:{side:'N',c:51},artWalls:['W','S'],
     benches:[[51.8,25.2,0,2.4],[51.8,27.8,Math.PI,2.4]]});
   {  // reading lamps for the carers' room
-    for(const [px,pz] of [[49.6,24.4],[54.6,28.6]]){
-      const pole=new THREE.Mesh(new THREE.CylinderGeometry(.035,.05,1.5,10),M.brass);
+    for(const [px,pz] of [[49.6,24.4],[54.4,28.6]]){
+      const pole=new THREE.Mesh(new THREE.CylinderGeometry(.035,.05,1.5,8),M.brass);
       pole.position.set(px,.8+.75,pz);pole.castShadow=true;root.add(pole);
-      const glow=new THREE.Mesh(new THREE.SphereGeometry(.16,16,12),stripMat);
+      const glow=new THREE.Mesh(new THREE.SphereGeometry(.16,12,8),stripMat);
       glow.position.set(px,.8+1.58,pz);root.add(glow);
     }
   }
@@ -1680,57 +1678,57 @@ function buildGallery(){
   {
     const wallMat=M.wall;
     // stub down from the rotunda
-    floorRect(21.2,23.8,30.5,33,.804,M.floor);
-    ceilRect(21.2,23.8,30.5,33,.8+2.9,M.ceil);
-    box(T/2,3.5,2.5,21.2+T/4,.8+1.45,31.75,wallMat,false);
-    box(T/2,3.5,2.5,23.8-T/4,.8+1.45,31.75,wallMat,false);
-    wRect(21.55,23.45,29.7,33.4,.8);
+    floorRect(21,24,30.5,32.4,.804,M.floor);
+    ceilRect(21,24,30.5,32.4,.8+2.9,M.ceil);
+    box(T/2,3.5,2.1,21+T/4,.8+1.45,31.45,wallMat,false);
+    box(T/2,3.5,2.1,24-T/4,.8+1.45,31.45,wallMat,false);
+    wRect(21.34,23.66,29.7,32.8,.8);
     // west leg (descending east)
-    for(const seg of [[21.2,24.5],[24.5,39.5]]){
-      slabFloor(seg[0],seg[1],33,35,(x,z)=>s1wH(x),M.floor);
-      slabCeil(seg[0],seg[1],33,35,(x,z)=>s1wH(x),2.9,M.ceil);
+    for(const seg of [[21,24.5],[24.5,39.5]]){
+      slabFloor(seg[0],seg[1],32.4,35,(x,z)=>s1wH(x),M.floor);
+      slabCeil(seg[0],seg[1],32.4,35,(x,z)=>s1wH(x),2.9,M.ceil);
     }
     {  // north wall (gap where the stub arrives), south wall solid
-      const lo=s1wH(39.5),hi=s1wH(23.8);
-      box(39.5-23.8,hi+2.9-lo+.3,T/2,(23.8+39.5)/2,(lo-.3+hi+2.9)/2,33+T/4,wallMat,false);
-      box(39.5-21.2,s1wH(21.2)+2.9-s1wH(39.5)+.3,T/2,(21.2+39.5)/2,(s1wH(39.5)-.3+s1wH(21.2)+2.9)/2,35-T/4,wallMat,false);
+      const lo=s1wH(39.5),hi=s1wH(24);
+      box(39.5-24,hi+2.9-lo+.3,T/2,(24+39.5)/2,(lo-.3+hi+2.9)/2,32.4+T/4,wallMat,false);
+      box(39.5-21,s1wH(21)+2.9-s1wH(39.5)+.3,T/2,(21+39.5)/2,(s1wH(39.5)-.3+s1wH(21)+2.9)/2,35-T/4,wallMat,false);
     }
-    wRect(21.3,39.9,33.4,34.6,(x,z)=>s1wH(x));
+    wRect(21.1,39.9,32.74,34.66,(x,z)=>s1wH(x));
     // east leg (descending to the Coda door)
-    for(const seg of [[43.5,50],[50,52.2]]){
-      slabFloor(seg[0],seg[1],33,35,(x,z)=>s1eH(x),M.floor);
-      slabCeil(seg[0],seg[1],33,35,(x,z)=>s1eH(x),2.9,M.ceil);
+    for(const seg of [[43.5,50],[50,52.4]]){
+      slabFloor(seg[0],seg[1],32.4,35,(x,z)=>s1eH(x),M.floor);
+      slabCeil(seg[0],seg[1],32.4,35,(x,z)=>s1eH(x),2.9,M.ceil);
     }
-    box(52.2-43.5,s1eH(43.5)+2.9+.3,T/2,(43.5+52.2)/2,(s1eH(43.5)+2.9-.3)/2,33+T/4,wallMat,false);
-    box(50-43.5,s1eH(43.5)+2.9+.3,T/2,(43.5+50)/2,(s1eH(43.5)+2.9-.3)/2,35-T/4,wallMat,false);
-    box(T/2,3.2,2,52.2-T/4,1.3,34,wallMat,false);   // east end cap
-    wRect(43.1,52,33.4,34.6,(x,z)=>s1eH(x));
-    wRect(49.9,52.1,33.6,35.9,0);
-    lightStrip(28,s1wH(28)+2.84,34,2.2,1.2);lightStrip(35,s1wH(35)+2.84,34,2.2,1.2);
-    lightStrip(47,s1eH(47)+2.84,34,2.2,1.2);
-    namedAreas.push({name:'Shortcut to the Coda',contains:(x,z)=>z>32.9&&z<35.1&&x>21&&x<52.3&&!(x>39.1&&x<43.9)});
+    box(52.4-43.5,s1eH(43.5)+2.9+.3,T/2,(43.5+52.4)/2,(s1eH(43.5)+2.9-.3)/2,32.4+T/4,wallMat,false);
+    box(49.7-43.5,s1eH(43.5)+2.9+.3,T/2,(43.5+49.7)/2,(s1eH(43.5)+2.9-.3)/2,35-T/4,wallMat,false);
+    box(T/2,3.2,2.6,52.4-T/4,1.3,33.7,wallMat,false);   // east end cap
+    wRect(43.1,52.2,32.74,34.66,(x,z)=>s1eH(x));
+    wRect(49.8,52.2,33,35.9,0);
+    lightStrip(28,s1wH(28)+2.84,33.7,2.2,1.4);lightStrip(35,s1wH(35)+2.84,33.7,2.2,1.4);
+    lightStrip(47,s1eH(47)+2.84,33.7,2.2,1.4);
+    namedAreas.push({name:'Shortcut to the Coda',contains:(x,z)=>z>32.3&&z<35.1&&x>20.9&&x<52.5&&!(x>39.1&&x<43.9)});
   }
   /* ---- shortcut s2: rising gallery → Sitting with Uncertainty ---- */
   {
     const wallMat=M.wall;
-    floorRect(43.5,46.4,22.2,24.4,.804,M.floor,Math.PI/2);
-    ceilRect(43.5,46.4,22.2,24.4,.8+2.9,M.ceil);
-    floorRect(44.2,46.4,14.9,22.2,.804,M.floor);
-    ceilRect(44.2,46.4,14.9,22.2,.8+2.9,M.ceil);
-    box(.7,3.5,T/2,43.85,.8+1.45,22.2+T/4,wallMat,false);
-    box(2.9,3.5,T/2,44.95,.8+1.45,24.4-T/4,wallMat,false);
-    box(T/2,3.5,7.3,44.2+T/4,.8+1.45,18.55,wallMat,false);
-    box(T/2,3.5,9.5,46.4-T/4,.8+1.45,19.65,wallMat,false);
-    wRect(43.1,46.06,22.54,24.06,.8);
-    wRect(44.54,46.06,14.2,24.06,.8);
-    lightStrip(45.3,.8+2.84,18.5,1.4,2.4);
-    namedAreas.push({name:'Shortcut to Uncertainty',contains:(x,z)=>x>43.4&&x<46.5&&z>14.5&&z<24.5});
+    floorRect(43.5,46.8,22,25,.804,M.floor,Math.PI/2);
+    ceilRect(43.5,46.8,22,25,.8+2.9,M.ceil);
+    floorRect(44,46.8,14.9,22,.804,M.floor);
+    ceilRect(44,46.8,14.9,22,.8+2.9,M.ceil);
+    box(.5,3.5,T/2,43.75,.8+1.45,22+T/4,wallMat,false);
+    box(3.3,3.5,T/2,45.15,.8+1.45,25-T/4,wallMat,false);
+    box(T/2,3.5,7.1,44+T/4,.8+1.45,18.45,wallMat,false);
+    box(T/2,3.5,10.1,46.8-T/4,.8+1.45,19.95,wallMat,false);
+    wRect(43.1,46.46,22.34,24.66,.8);
+    wRect(44.34,46.46,14.2,24.66,.8);
+    lightStrip(45.4,.8+2.84,18.5,1.6,2.4);
+    namedAreas.push({name:'Shortcut to Uncertainty',contains:(x,z)=>x>43.4&&x<46.9&&z>14.5&&z<25.1});
   }
 
   /* -- 12 · Coda — Reflection & Responses -- */
   rectRoom('cod',50,62,35,42,0,{
-    doors:[{side:'N',c:57.5,w:2.4},{side:'N',c:51,w:2.2},{side:'S',c:55.6,w:2.2,dest:'ext'}],
-    placard:{side:'S',c:59.6},noArt:true,benches:[[56,38.6,0,3.0]]});
+    doors:[{side:'N',c:57.5,w:3.0},{side:'N',c:51,w:2.6},{side:'S',c:55.6,w:3.0,dest:'ext'}],
+    placard:{side:'S',c:59.8},noArt:true,benches:[[56,38.6,0,3.0]]});
   {
     const ct=new THREE.Mesh(new THREE.PlaneGeometry(6.2,3.99),
       new THREE.MeshStandardMaterial({map:codaTex(),roughness:.95}));
@@ -1740,20 +1738,26 @@ function buildGallery(){
     codaWallMesh.position.set(62-T/2-.03,2.3,38.5);codaWallMesh.rotation.y=-Math.PI/2;
     codaWallMesh.receiveShadow=true;root.add(codaWallMesh);
   }
-  conn(54.5,56.7,42,43.5,0,'z');
+  conn(54.1,57.1,42,43.5,0,'z');
   /* -- Exit vestibule -- */
   rectRoom('ext',52,60,43.5,46,0,{
-    doors:[{side:'N',c:55.6,w:2.2,dest:'cod'}],
+    doors:[{side:'N',c:55.6,w:3.0,dest:'cod'}],
     placard:{side:'E',c:44.75},noArt:true});
   {
     const dv=new THREE.Mesh(new THREE.BoxGeometry(2.2,2.9,.14),
       new THREE.MeshStandardMaterial({color:0x11202e,roughness:.6}));
     dv.position.set(56,1.45,46-T/2-.1);root.add(dv);
+    const exMap=lintelTex('Exit','#274b66');
     const ex=new THREE.Mesh(new THREE.PlaneGeometry(2.4,.5),
-      new THREE.MeshStandardMaterial({map:lintelTex('Exit','#274b66'),roughness:.9,
-        emissive:0xffffff,emissiveMap:lintelTex('Exit','#274b66'),emissiveIntensity:.5}));
+      new THREE.MeshStandardMaterial({map:exMap,roughness:.9,
+        emissive:0xffffff,emissiveMap:exMap,emissiveIntensity:.5}));
     ex.position.set(56,3.15,46-T/2-.2);ex.rotation.y=Math.PI;root.add(ex);
   }
+
+  /* everything above is static — freeze matrices so the per-frame scene
+     graph update costs nothing */
+  root.updateMatrixWorld(true);
+  root.traverse(o=>{o.matrixAutoUpdate=false;});
 }
 
 /* =====================================================================
@@ -1892,7 +1896,7 @@ const spots=[],fills=[];
 for(let i=0;i<SPOT_POOL;i++){
   const s=new THREE.SpotLight(0xffe0ae,0,8.5,Math.PI/6.5,.62,1.7);
   s.shadow.mapSize.set(512,512);s.shadow.bias=-0.0009;s.shadow.normalBias=.022;
-  s.shadow.camera.near=.25;s.shadow.camera.far=8;s.castShadow=i<2;
+  s.shadow.camera.near=.25;s.shadow.camera.far=8;s.castShadow=i<1;   // one shadow caster: cheap handoffs
   scene.add(s);scene.add(s.target);spots.push(s);
 }
 for(let i=0;i<FILL_POOL;i++){
@@ -1929,7 +1933,7 @@ function updateLightPool(){
   renderer.shadowMap.needsUpdate=true;
 }
 
-const DUST=700;
+const DUST=360;
 const dpos=new Float32Array(DUST*3),dvel=new Float32Array(DUST);
 for(let i=0;i<DUST;i++){dpos[i*3]=Math.random()*26-13;dpos[i*3+1]=Math.random()*4.6+.4;
   dpos[i*3+2]=Math.random()*12-6;dvel[i]=.02+Math.random()*.05;}
@@ -1943,8 +1947,7 @@ scene.add(dust);
    8. WALKING — point-in-shape collision with wall slide, and a smoothed
    camera height that rides the ramps
    ===================================================================== */
-let REDUCE=false;
-document.getElementById('calmMove').onchange=e=>REDUCE=e.target.checked;
+const REDUCE=true;   // steady camera always — no bob, no roll
 const controls=new PointerLockControls(camera,renderer.domElement);
 camera.position.set(1.3,EYE,40.25);
 camera.rotation.y=-Math.PI/2;  // in the vestibule, facing the arch
@@ -2255,28 +2258,91 @@ addEventListener('resize',()=>{
 });
 
 /* =====================================================================
-   10. LOOP
+   10. MINIMAP — the plan again, one more time, translucent in the corner.
+   World metres × 20 = plan pixels, so the mapping is exact.
+   ===================================================================== */
+const mini=document.getElementById('minimap');
+const mnx=mini.getContext('2d');
+const miniBase=document.createElement('canvas');
+miniBase.width=mini.width;miniBase.height=mini.height;
+const MSC=mini.width/1290, MOX=-20*MSC+6, MOY=-40*MSC+6;
+const mmx=v=>v*MSC+MOX, mmy=v=>v*MSC+MOY;
+{
+  const x=miniBase.getContext('2d');
+  x.fillStyle='rgba(12,8,5,.52)';
+  x.beginPath();x.roundRect(0,0,miniBase.width,miniBase.height,10);x.fill();
+  x.lineWidth=2.4;x.strokeStyle='rgba(232,221,201,.34)';
+  for(const [a,b,c,d] of PLAN.links){x.beginPath();x.moveTo(mmx(a),mmy(b));x.lineTo(mmx(c),mmy(d));x.stroke();}
+  x.setLineDash([4,4]);x.strokeStyle='rgba(170,195,215,.4)';
+  for(const pl of PLAN.shortcuts){x.beginPath();pl.forEach(([px,py],i)=>i?x.lineTo(mmx(px),mmy(py)):x.moveTo(mmx(px),mmy(py)));x.stroke();}
+  x.setLineDash([]);
+  for(const s of PLAN.zones){
+    const z=ZONES[s.zid];
+    x.fillStyle=z.accent;x.globalAlpha=.5;
+    x.beginPath();
+    if(s.kind==='rect')x.rect(mmx(s.x),mmy(s.y),(s.w)*MSC,(s.h)*MSC);
+    else if(s.kind==='ellipse')x.ellipse(mmx(s.x+s.w/2),mmy(s.y+s.h/2),s.w/2*MSC,s.h/2*MSC,0,0,7);
+    else{const cx2=mmx(s.x+s.w/2),cy2=mmy(s.y+s.h/2);
+      x.moveTo(mmx(s.x),cy2);x.lineTo(cx2,mmy(s.y));x.lineTo(mmx(s.x+s.w),cy2);x.lineTo(cx2,mmy(s.y+s.h));x.closePath();}
+    x.fill();x.globalAlpha=.85;
+    x.lineWidth=1.2;x.strokeStyle='rgba(232,221,201,.5)';x.stroke();
+    x.globalAlpha=1;
+    if(z.num){
+      x.fillStyle='rgba(240,232,214,.92)';x.font='600 15px Georgia, serif';x.textAlign='center';
+      x.fillText(String(z.num),mmx(s.x+s.w/2),mmy(s.y+s.h/2)+5);
+    }
+  }
+}
+function drawMini(){
+  mnx.clearRect(0,0,mini.width,mini.height);
+  mnx.drawImage(miniBase,0,0);
+  const px=mmx(camera.position.x*20), pz=mmy(camera.position.z*20);
+  camera.getWorldDirection(fwd);
+  const a=Math.atan2(fwd.z,fwd.x);
+  mnx.save();mnx.translate(px,pz);mnx.rotate(a);
+  mnx.fillStyle='rgba(255,240,214,.9)';
+  mnx.beginPath();mnx.moveTo(13,0);mnx.lineTo(-4,-6.5);mnx.lineTo(-4,6.5);mnx.closePath();mnx.fill();
+  mnx.restore();
+  mnx.fillStyle='#e0ab5c';
+  mnx.beginPath();mnx.arc(px,pz,4,0,7);mnx.fill();
+  mnx.lineWidth=1.5;mnx.strokeStyle='#2a1c0a';mnx.stroke();
+}
+
+/* =====================================================================
+   11. LOOP — with a small auto-degrade ladder: if frames stay slow,
+   first drop resolution, then give up the one shadow caster.
    ===================================================================== */
 buildComposer();
 const dpAttr=dgeo.getAttribute('position');
-let lightAcc=1;
+let lightAcc=1,miniAcc=1,frame=0,slowT=0,degrade=0;
 renderer.setAnimationLoop(()=>{
   const dt=Math.min(clock.getDelta(),.1);
+  frame++;
   if(controls.isLocked||touchWalking)move(dt);
   updateContext();
   lightAcc+=dt;
   if(lightAcc>.12){lightAcc=0;updateLightPool();}
-  const p=camera.position;
-  for(let i=0;i<DUST;i++){
-    let y=dpAttr.getY(i)+dvel[i]*dt;
-    let x=dpAttr.getX(i)+Math.sin(y*2.2+i)*dt*.06;
-    let z=dpAttr.getZ(i);
-    if(y>5.6)y=.3;
-    if(x<p.x-13)x+=26; if(x>p.x+13)x-=26;
-    if(z<p.z-8)z+=16; if(z>p.z+8)z-=16;
-    dpAttr.setXYZ(i,x,y,z);
+  miniAcc+=dt;
+  if(miniAcc>.08){miniAcc=0;if(hud.style.display==='block')drawMini();}
+  // frame-time watchdog
+  if(dt>.034)slowT+=dt; else slowT=Math.max(0,slowT-dt*.5);
+  if(slowT>2.5&&degrade===0){degrade=1;slowT=0;renderer.setPixelRatio(1);}
+  else if(slowT>2.5&&degrade===1){degrade=2;slowT=0;
+    spots.forEach(s=>s.castShadow=false);renderer.shadowMap.needsUpdate=true;}
+  // dust drifts on alternate frames only
+  if(frame%2===0){
+    const p=camera.position, dt2=dt*2;
+    for(let i=0;i<DUST;i++){
+      let y=dpAttr.getY(i)+dvel[i]*dt2;
+      let x=dpAttr.getX(i)+Math.sin(y*2.2+i)*dt2*.06;
+      let z=dpAttr.getZ(i);
+      if(y>5.6)y=.3;
+      if(x<p.x-13)x+=26; if(x>p.x+13)x-=26;
+      if(z<p.z-8)z+=16; if(z>p.z+8)z-=16;
+      dpAttr.setXYZ(i,x,y,z);
+    }
+    dpAttr.needsUpdate=true;
   }
-  dpAttr.needsUpdate=true;
   if(composer) composer.render(); else renderer.render(scene,camera);
 });
 $('loading').style.display='none';
@@ -2285,7 +2351,18 @@ $('loading').style.display='none';
 window.__g={camera,floorAt,allowed,
   go:(x,z,ry)=>{camera.position.set(x,(floorAt(x,z)??0)+EYE,z);camY=camera.position.y;
     if(ry!==undefined)camera.rotation.set(0,ry,0);},
-  zones:Object.keys(ZONES),exhibits:()=>exhibitObjs.length,areas:namedAreas};
+  zones:Object.keys(ZONES),exhibits:()=>exhibitObjs.length,areas:namedAreas,
+  artExtents:()=>exhibitObjs.filter(e=>!e.data.introStand&&!e.data.display).map(e=>({
+    x:e.pos.x,y:e.pos.y,z:e.pos.z,facing:e.facing,
+    w:(e.mesh.geometry.parameters&&e.mesh.geometry.parameters.width)||1,
+    label:e.labelPos?{x:e.labelPos.x,y:e.labelPos.y,z:e.labelPos.z}:null,
+    title:e.data.title})),
+  probe:(ox,oy,oz,dx,dy,dz)=>{
+    const rc=new THREE.Raycaster(new THREE.Vector3(ox,oy,oz),
+      new THREE.Vector3(dx,dy,dz).normalize(),0,3);
+    const hits=rc.intersectObjects(root.children,true);
+    return hits.length?hits[0].distance:null;
+  }};
 </script>
 </body>
 </html>
