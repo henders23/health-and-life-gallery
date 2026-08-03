@@ -123,6 +123,14 @@
   #rForm textarea{min-height:70px;resize:vertical}
   #rForm .submit{padding:11px}
   @media (pointer:coarse){#keys{display:none}}
+  /* ---- pause veil: losing the mouse never leaves the gallery ---- */
+  #pauseVeil{position:fixed;inset:0;z-index:15;display:none;align-items:center;justify-content:center;
+    background:rgba(10,7,4,.45);backdrop-filter:blur(2px);cursor:pointer}
+  #pauseVeil.open{display:flex}
+  #pauseVeil .pv{text-align:center;padding:26px 46px;border:1px solid var(--hair);
+    background:rgba(20,14,9,.78);font-size:22px;color:var(--plaster)}
+  #pauseVeil .pv span{display:block;margin-top:10px;font-size:12px;letter-spacing:.18em;
+    text-transform:uppercase;color:rgba(232,221,201,.55)}
   /* ---- minimap ---- */
   #minimap{position:absolute;left:16px;top:16px;width:236px;height:auto;opacity:.82;
     border:1px solid var(--hair);border-radius:6px;pointer-events:none}
@@ -159,6 +167,7 @@
 </div>
 
 <div id="joyBase"><div id="joyKnob"></div></div>
+<div id="pauseVeil"><div class="pv">Paused<span>Click to carry on from where you were · M for map</span></div></div>
 <div id="fullView"></div>
 <div id="hud">
   <canvas id="minimap" width="472" height="364"></canvas>
@@ -2053,10 +2062,12 @@ function updateContext(){
    9. UI
    ===================================================================== */
 const $=id=>document.getElementById(id);
-const entrance=$('entrance'),hud=$('hud');
+const entrance=$('entrance'),hud=$('hud'),pauseVeil=$('pauseVeil');
+pauseVeil.addEventListener('click',()=>{pauseVeil.classList.remove('open');resume();});
 const detail=$('detailSheet'),dirSheet=$('dirSheet'),upSheet=$('upSheet'),mapSheet=$('mapSheet');
 let sheetOpen=false;
-const openSheet=el=>{el.classList.add('open');sheetOpen=true;controls.unlock();};
+const openSheet=el=>{el.classList.add('open');sheetOpen=true;
+  pauseVeil.classList.remove('open');controls.unlock();};
 function closeSheets(){[detail,dirSheet,upSheet,mapSheet].forEach(s=>s.classList.remove('open'));
   $('dMedia').innerHTML='';sheetOpen=false;}
 document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>{closeSheets();resume();});
@@ -2085,6 +2096,9 @@ renderer.domElement.addEventListener('mousedown',()=>{
   if(!sheetOpen&&hud.style.display==='block')resume();
 });
 document.addEventListener('pointerlockerror',()=>{
+  // the browser refused to give the mouse back (its post-Escape cooldown):
+  // stay in the gallery behind a translucent veil, and retry quietly
+  if(!sheetOpen&&hud.style.display==='block')pauseVeil.classList.add('open');
   setTimeout(()=>{
     if(!sheetOpen&&!controls.isLocked&&hud.style.display==='block')controls.lock();
   },1600);
@@ -2232,7 +2246,8 @@ function rebuild(){
 const IS_TOUCH=matchMedia('(pointer:coarse)').matches;
 let touchWalking=false;
 const resume=()=>{
-  if(IS_TOUCH){entrance.style.display='none';hud.style.display='block';touchWalking=true;}
+  if(IS_TOUCH){entrance.style.display='none';hud.style.display='block';
+    pauseVeil.classList.remove('open');touchWalking=true;}
   else controls.lock();
 };
 $('enterBtn').onclick=()=>resume();
@@ -2281,8 +2296,15 @@ if(IS_TOUCH){
   cv.addEventListener('touchend',endT);cv.addEventListener('touchcancel',endT);
   window._joy=joy;
 }
-controls.addEventListener('lock',()=>{entrance.style.display='none';hud.style.display='block';});
-controls.addEventListener('unlock',()=>{if(!sheetOpen)entrance.style.display='flex';});
+controls.addEventListener('lock',()=>{
+  entrance.style.display='none';hud.style.display='block';
+  pauseVeil.classList.remove('open');
+});
+/* losing the mouse mid-visit (Escape, alt-tab, closing a sheet) pauses in
+   place — the title screen only ever appears on first arrival */
+controls.addEventListener('unlock',()=>{
+  if(!sheetOpen&&hud.style.display==='block')pauseVeil.classList.add('open');
+});
 
 addEventListener('resize',()=>{
   camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
