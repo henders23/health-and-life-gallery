@@ -166,6 +166,7 @@
   </div>
 </div>
 
+<audio id="bgm" src="mesmerize-kevin-macleod.mp3" loop preload="none"></audio>
 <div id="joyBase"><div id="joyKnob"></div></div>
 <div id="pauseVeil"><div class="pv">Paused<span>Click to carry on from where you were · M for map</span></div></div>
 <div id="fullView"></div>
@@ -175,6 +176,7 @@
   <div id="roomTag">Now entering<span id="roomName">Threshold &amp; Orientation</span></div>
   <div id="prompt">Press E to view</div>
   <div id="tools">
+    <button class="tool" id="musBtn">Music · On</button>
     <button class="tool" id="mapBtn">Map</button>
     <button class="tool" id="dirBtn">Directory</button>
     <button class="tool" id="upBtn">Submit work</button>
@@ -806,6 +808,59 @@ function howToTex(){
       lines.forEach((l,i)=>{x.fillText(l,250,y+i*33);});
       y+=lines.length*33+22;
     }
+    grain(x,W,H,8);
+  }));
+}
+
+/* ---- atrium credit placards: the music, and the makers ---- */
+function musicCredTex(){
+  return tex(cvs(950,700,(x,W,H)=>{
+    x.fillStyle='#e6dcc6';x.fillRect(0,0,W,H);
+    x.strokeStyle='rgba(125,98,58,.4)';x.lineWidth=3;x.strokeRect(16,16,W-32,H-32);
+    let y=90;x.textAlign='left';
+    x.font='600 40px Georgia, serif';x.fillStyle='#4f3a1f';
+    x.fillText('MUSIC',52,y);y+=20;
+    x.strokeStyle='#b8873f';x.lineWidth=3;
+    x.beginPath();x.moveTo(52,y);x.lineTo(200,y);x.stroke();y+=52;
+    x.font='28px Georgia, serif';x.fillStyle='#44341f';
+    x.fillText('‘Mesmerize’ by Kevin MacLeod is licensed',52,y);y+=38;
+    x.fillText('under a Creative Commons Attribution 4.0',52,y);y+=38;
+    x.fillText('license.',52,y);y+=50;
+    x.font='22px Georgia, serif';x.fillStyle='#5b4325';
+    x.fillText('https://creativecommons.org/licenses/by/4.0/',52,y);y+=48;
+    x.font='26px Georgia, serif';x.fillStyle='#44341f';
+    x.fillText('Source:',52,y);y+=34;
+    x.font='21px Georgia, serif';x.fillStyle='#5b4325';
+    x.fillText('http://incompetech.com/music/royalty-free/',52,y);y+=30;
+    x.fillText('index.html?isrc=USUAN1500005',52,y);y+=46;
+    x.font='26px Georgia, serif';x.fillStyle='#44341f';
+    x.fillText('Artist:  ',52,y);
+    x.font='22px Georgia, serif';x.fillStyle='#5b4325';
+    x.fillText('http://incompetech.com/',140,y);y+=52;
+    x.font='italic 22px Georgia, serif';x.fillStyle='rgba(140,100,45,.95)';
+    x.fillText('The Music button, bottom right, turns it on and off.',52,y);
+    grain(x,W,H,8);
+  }));
+}
+function makersTex(){
+  return tex(cvs(950,700,(x,W,H)=>{
+    x.fillStyle='#e6dcc6';x.fillRect(0,0,W,H);
+    x.strokeStyle='rgba(125,98,58,.4)';x.lineWidth=3;x.strokeRect(16,16,W-32,H-32);
+    let y=90;x.textAlign='left';
+    x.font='600 40px Georgia, serif';x.fillStyle='#4f3a1f';
+    x.fillText('THE MAKERS',52,y);y+=20;
+    x.strokeStyle='#b8873f';x.lineWidth=3;
+    x.beginPath();x.moveTo(52,y);x.lineTo(290,y);x.stroke();y+=72;
+    x.font='24px Georgia, serif';x.fillStyle='rgba(74,58,38,.7)';
+    x.fillText('PROJECT LEAD',52,y);y+=48;
+    x.font='34px Georgia, serif';x.fillStyle='#44341f';
+    x.fillText('Sheena Warman',52,y);y+=78;
+    x.font='24px Georgia, serif';x.fillStyle='rgba(74,58,38,.7)';
+    x.fillText('DESIGNER',52,y);y+=48;
+    x.font='34px Georgia, serif';x.fillStyle='#44341f';
+    x.fillText('Paul Hendrie',52,y);y+=84;
+    x.font='italic 23px Georgia, serif';x.fillStyle='rgba(140,100,45,.95)';
+    x.fillText('Built as a pilot for the student learning showcase.',52,y);
     grain(x,W,H,8);
   }));
 }
@@ -1458,6 +1513,13 @@ function buildGallery(){
     const t=new THREE.Mesh(new THREE.PlaneGeometry(8.4,2.73),
       new THREE.MeshStandardMaterial({map:bigTitleTex(),roughness:.95}));
     t.position.set(9.25,2.75,35.5+T/2+.03);t.receiveShadow=true;root.add(t);
+    // credit placards flank the title: the music, and the makers
+    const mc=new THREE.Mesh(new THREE.PlaneGeometry(2.6,1.92),
+      new THREE.MeshStandardMaterial({map:musicCredTex(),roughness:.94}));
+    mc.position.set(3.5,2.15,35.5+T/2+.03);mc.receiveShadow=true;root.add(mc);
+    const mk=new THREE.Mesh(new THREE.PlaneGeometry(2.6,1.92),
+      new THREE.MeshStandardMaterial({map:makersTex(),roughness:.94}));
+    mk.position.set(15.0,2.15,35.5+T/2+.03);mk.receiveShadow=true;root.add(mk);
     const de=new THREE.Mesh(new THREE.PlaneGeometry(4.6,3.18),
       new THREE.MeshStandardMaterial({map:descTex(),roughness:.94}));
     de.position.set(2+T/2+.03,2.35,40.25);de.rotation.y=Math.PI/2;de.receiveShadow=true;root.add(de);
@@ -2064,6 +2126,20 @@ function updateContext(){
 const $=id=>document.getElementById(id);
 const entrance=$('entrance'),hud=$('hud'),pauseVeil=$('pauseVeil');
 pauseVeil.addEventListener('click',()=>{pauseVeil.classList.remove('open');resume();});
+
+/* ---- music: starts on entry, remembered between visits ---- */
+const bgm=$('bgm');bgm.volume=.32;
+let musicOn=localStorage.getItem('hlsg-music')!=='off';
+const musBtn=$('musBtn');
+function setMusic(on,play=true){
+  musicOn=on;
+  try{localStorage.setItem('hlsg-music',on?'on':'off');}catch(e){}
+  musBtn.textContent='Music · '+(on?'On':'Off');
+  if(on&&play)bgm.play().catch(()=>{});
+  if(!on)bgm.pause();
+}
+setMusic(musicOn,false);
+musBtn.onclick=()=>setMusic(!musicOn);
 const detail=$('detailSheet'),dirSheet=$('dirSheet'),upSheet=$('upSheet'),mapSheet=$('mapSheet');
 let sheetOpen=false;
 const openSheet=el=>{el.classList.add('open');sheetOpen=true;
@@ -2250,7 +2326,10 @@ const resume=()=>{
     pauseVeil.classList.remove('open');touchWalking=true;}
   else controls.lock();
 };
-$('enterBtn').onclick=()=>resume();
+$('enterBtn').onclick=()=>{
+  if(musicOn)bgm.play().catch(()=>{});   // entering is a user gesture, so autoplay is allowed
+  resume();
+};
 if(IS_TOUCH){
   promptEl.textContent='Tap here to view';
   promptEl.style.pointerEvents='auto';
